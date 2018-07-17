@@ -4,6 +4,7 @@
 
 #include <QString>
 #include <QVector>
+#include <QByteArray>
 
 
 class Options {
@@ -21,6 +22,7 @@ public:
 	QString userAgentsOptions[1];
 	//valid options , load list of keywords into array;
 	QHash<QString, int> keywordLoadListOptions;
+	// QHash<QByteArray, int> keywordLoadListOptions;
 	//valid options , load completed list/tagged of keywords into array;
 	QHash<QString, int> keywordTaggeddListOptions;
 

@@ -19,8 +19,8 @@
 #include <QModelIndex>
 #include <stdio.h>
 #include <string.h>
-
-
+#include <QTextCodec>
+#include <QCoreApplication>
 
 
 
@@ -181,6 +181,9 @@ BeatCrawler::BeatCrawler(QWidget *parent) :
 	addProxyCounterNum = 0;
 	addProxyCounterPtr = &addProxyCounterNum;
 
+	fileListNum = 0;
+	fileListPtr = &fileListNum;
+
 
 	// put inside method
 	/*******
@@ -314,7 +317,7 @@ void BeatCrawler::on_pushButton_Start_clicked(bool checked)
 		}
 
 		//if we press start buttonand keyword searchb box and keyword list hasnt beeen choosen
-		if (ui->lineEdit_keywords_search_box->text().isEmpty() && options[4]->keywordLoadListOptions.isEmpty())
+		if (ui->lineEdit_keywords_search_box->text().isEmpty() && fileList->isEmpty())
 		{
 			QMessageBox::information(this, "...", "Please enter a keyword, or Load a list of keywords");
 			isKeywordsSelect = false;
@@ -325,14 +328,14 @@ void BeatCrawler::on_pushButton_Start_clicked(bool checked)
 			isKeywordsSelect = true;
 		}
 
-		// search box is empty but we keywords in list // ok
-		if (ui->lineEdit_keywords_search_box->text().isEmpty() && !options[4]->keywordLoadListOptions.isEmpty())
+		// search box is empty but we have keywords in list // ok
+		if (ui->lineEdit_keywords_search_box->text().isEmpty() && !fileList->isEmpty())
 		{
 			isKeywordsSelect = true;
 		}
 
 		// search box is  not empty but we dont have keywords in list // ok
-		if (!ui->lineEdit_keywords_search_box->text().isEmpty() && options[4]->keywordLoadListOptions.isEmpty()) {
+		if (!ui->lineEdit_keywords_search_box->text().isEmpty() && fileList->isEmpty()) {
 			isKeywordsSelect = true;
 		}
 
@@ -350,9 +353,9 @@ void BeatCrawler::on_pushButton_Start_clicked(bool checked)
 
 			// if keyword list is not empty, and keywordsearch box isnt empty add
 			// the keyword from search box into keyword list hash table
-			if (!ui->lineEdit_keywords_search_box->text().isEmpty() && !options[4]->keywordLoadListOptions.isEmpty())
+			if (!ui->lineEdit_keywords_search_box->text().isEmpty() && !fileList->isEmpty())
 			{
-				options[4]->keywordLoadListOptions.insert(ui->lineEdit_keywords_search_box->text(), 0);
+				fileList->prepend(ui->lineEdit_keywords_search_box->text());
 
 
 			}
@@ -711,66 +714,73 @@ void BeatCrawler::on_pushButton_Load_Keyword_List_clicked()
 	QString fileName = QFileDialog::getOpenFileName(this, "Open text file", "");
 	QFile file(fileName);
 	QFileInfo fi(file.fileName());
-	QString fileExt = fi.completeSuffix();
-
-	QString filteredString1;
-	QString filteredString2;
-	QStringList filteredString3;
+	QString fileExt = fi.completeSuffix();;
 	QHash<QString, int>hashKeywordLoadList;
-	QByteArray data;
-	QVector<qint64>*vector = new QVector<qint64>;
-	//vector->reserve(5000000);
-	data.reserve(5000000);
-	QString fileLine;
+	QString strings;
+	QString str;
 
-	
 
-	if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+	if (!file.open(QIODevice::ReadOnly)) {
 		//QMessageBox::warning(this,"...","error in opening keyword file");
 		return;
 	}
-	else {
+	//QByteArray ba = file.readAll();
+	QTextStream ts(&file);
+	while (!ts.atEnd()) {
+		QApplication::processEvents();
+		str = ts.readLine();
+		//str = str.split(QRegExp("[\r\n]"), QString::SkipEmptyParts);
+		*fileList << str;
 
-		if (fileExt == "txt")
+		
+
+
+	}
+	
+
+	for (int row = 0; row < fileList->size(); row++)
+	{
+		
+
+		for (int col = 0; col < 2; col++)
 		{
-			
-			ui->lineEdit_Keyword_List_File_Location->setText(file.fileName());
-			data = file.readAll();
-			fileLine.append(data);
-			*fileList = fileLine.split(QRegExp("[\r\n]"), QString::SkipEmptyParts);
-			//qDebug() << fileList;
+			if (col == 0) {
+				ui->tableWidget_Keywords_Queue->setItem(row, col, new QTableWidgetItem(fileList->at(row)));
 
-			//qDebug() << data;
-
-			for (int i = 0; i <fileList->size(); i++) {
-				options[4]->keywordLoadListOptions[fileList->at(i)] = 0;
 			}
-		}
-		else
-		{
 
-			QMessageBox::warning(this, "...", "Please select a text file");
+			if (col == 1) {
+				ui->tableWidget_Keywords_Queue->setItem(row, col, new QTableWidgetItem(""));
+			}
 		}
 
 	}
+	qDebug() << fileList->size();
 
-	
 	file.close();
-
-
-
-
 
 }
 
+QString BeatCrawler::toDebug(const QByteArray & line) {
 
+	QString s;
+	uchar c;
+
+	for (int i = 0; i < line.size(); i++) {
+		c = line[i];
+		if (c >= 0x20 && c<= 126) {
+			s.append(c);
+		}
+		else {
+			s.append(QString("<%1>").arg(c, 2, 16, QChar('0')));
+		}
+	}
+	return s;
+}
 void BeatCrawler::disableStartButtonLoadKeywordList() {
 	ui->pushButton_Start->setEnabled(false);
 
-	if (!options[4]->keywordLoadListOptions.isEmpty()) {
-		//  ui->pushButton_Start->setEnabled(false);
-
-	}
+	
 }
 
 void BeatCrawler::enableStartButtonLoadKeywordList() {
@@ -871,35 +881,17 @@ void BeatCrawler::receiverParameters()
 	to check its tagged status.
 
 	****/
+	 
 
-	QHash<QString, int>::const_iterator i = options[4]->keywordLoadListOptions.constBegin();
-
-
-
-	//qDebug() << options[4]->keywordLoadListOptions
-
-	while (i != options[4]->keywordLoadListOptions.constEnd()) {
-
-		// Keyword is good to use,
-
-		if (i == i && i.value() == 0) {
-
-			*currentKeywordPtr = i.key();
-
-			break;
-		}
-		else {
-
-			// ONLY INCREMENT ITERATOR ON CERTAIN CONDITION BELOW
-
-			// Keyword is not good to use, increment keyword index, go to next keyword to scrape
-
-			i++;
-
-		}
-
+	// *currentKeywordPtr =  fileList->at(*fileListPtr);
+	if (!fileList->isEmpty()) {
+		*currentKeywordPtr = fileList->at(*fileListPtr); // on load is 0 which is the first index value
+		qDebug() <<"Current index " << *fileListPtr;
+		qDebug() << "current keyword " << *currentKeywordPtr;
 	}
 
+
+	
 
 	// ui->label_Current_Keyword->setText("Current Keyword: " + *currentKeywordPtr);
 
@@ -1241,7 +1233,7 @@ void BeatCrawler::receiverParameters()
 
 
 
-		if (!options[4]->keywordLoadListOptions.empty())
+		if (!fileList->empty())
 		{
 
 			ui->label_Current_Keyword->setText("Current Keyword: " + currentKeywordPtr->replace("+", " "));
@@ -1256,7 +1248,7 @@ void BeatCrawler::receiverParameters()
 
 		// if both are not empty used currentKeywordPtr because the searchbox keyword is in the
 		// qlist/hash and will be eventuall processed
-		if (!options[4]->keywordLoadListOptions.empty() && !ui->lineEdit_keywords_search_box->text().isEmpty())
+		if (!fileList->empty() && !ui->lineEdit_keywords_search_box->text().isEmpty())
 		{
 			ui->label_Current_Keyword->setText("Current Keyword: " + currentKeywordPtr->replace("+", " "));
 
@@ -1692,7 +1684,7 @@ void BeatCrawler::receiverParameters()
 
 
 
-		if (!options[4]->keywordLoadListOptions.empty())
+		if (!fileList->empty())
 		{
 			ui->label_Current_Keyword->setText("Current Keyword: " + currentKeywordPtr->replace("+", " "));
 			searchEngineParam = "https://www.bing.com/search?q=" +
@@ -1708,7 +1700,7 @@ void BeatCrawler::receiverParameters()
 
 		// if both are not empty used currentKeywordPtr because the searchbox keyword is in the
 		// qlist/hash and will be eventuall processed
-		if (!options[4]->keywordLoadListOptions.empty() && !ui->lineEdit_keywords_search_box->text().isEmpty())
+		if (!fileList->empty() && !ui->lineEdit_keywords_search_box->text().isEmpty())
 		{
 			ui->label_Current_Keyword->setText("Current Keyword: " + currentKeywordPtr->replace(" ", "+"));
 
@@ -2014,7 +2006,7 @@ void BeatCrawler::receiverParameters()
 
 
 
-		if (!options[4]->keywordLoadListOptions.empty())
+		if (!fileList->empty())
 		{
 
 			ui->label_Current_Keyword->setText("Current Keyword: " + currentKeywordPtr->replace("+", " "));
@@ -2028,7 +2020,7 @@ void BeatCrawler::receiverParameters()
 
 		// if both are not empty used currentKeywordPtr because the searchbox keyword is in the
 		// qlist/hash and will be eventuall processed
-		if (!options[4]->keywordLoadListOptions.empty() && !ui->lineEdit_keywords_search_box->text().isEmpty())
+		if (!fileList->empty() && !ui->lineEdit_keywords_search_box->text().isEmpty())
 		{
 			ui->label_Current_Keyword->setText("Current Keyword: " + currentKeywordPtr->replace("+", " "));
 
@@ -2213,132 +2205,38 @@ void BeatCrawler::receiverParameters()
 
 
 	
-
+	qDebug() << *fileListPtr;
 	/****if timer is less or equal to search results combox box***/
 	if (QString::number(*keywordListNumPtrCounter) == ui->comboBox_search_results_amount->currentText())
 	{
-
-		// worker->abort();
-		//thread->quit();
-		if (!options[4]->keywordLoadListOptions.isEmpty())
-		{
+		if (!fileList->empty()) {
 			filterCurrentKeyword = *currentKeywordPtr;
 			filterCurrentKeyword = filterCurrentKeyword.replace("+", " ");
-			QHash<QString, int>::const_iterator j = options[4]->keywordLoadListOptions.constBegin();
-			while (j != options[4]->keywordLoadListOptions.constEnd()) {
-				// if keys inside hash does not match current keyword, and is not empty, there more elements
-				if (j.key() != filterCurrentKeyword )
-
-				{
-					
-					// if key is not empty, and value is 0/not tagged theres more elements ahead
-					// mark it as one, and increment keywordlistptr
-					if (!j.key().isEmpty() && j.value() == 0) {
-
-						// current keyword key can now be assigned 1 because were done with it
-						options[4]->keywordLoadListOptions.insert(filterCurrentKeyword, 1);
-						// restart keywordList timer to start again with new keyword in hash
-						*keywordListNumPtrCounter = 0;
-
-
-					}
-					
-					// if key is not empty, and value is 1/tagged,
-					// we still want to increase keywordlistptr to get the next keyword in list
-
-					if (!j.key().isEmpty() && j.value() == 1) {
-
-						*keywordListNumPtrCounter = 0;
-					}
-
-					//qDebug() << "key" << j.key() << "value " << j.value();
-					//qDebug() << "keyword??" << filterCurrentKeyword;
-					/*********If we've reached the end of the keyword list*****/
-					//options[4]->keywordListOptions.value(ui->label_Current_Keyword->text()) = 1
-					
-				
-				}//end of out if statement
-				
-				//qDebug() << options[4]->keywordLoadListOptions.size();
-				//qDebug() << fileList->size();
-
-				//qDebug() << ui->tableWidget_Keywords_Queue->item((fileList->size-1), 0)->text();
-
-				vectorKeywordMatchesCurrentKeyword = ui->label_Current_Keyword->text().replace("Current Keyword: ", "");
-				if (ui->tableWidget_Keywords_Queue->item((fileList->size() - 1), 0)->text() == vectorKeywordMatchesCurrentKeyword)
-				{
-					
-					qDebug() << "Matches";
-					//qDebug() << vectorKeywordMatchesCurrentKeyword;
-					//qDebug() << filterCurrentKeyword;
-					options[4]->keywordLoadListOptions.insert(vectorKeywordMatchesCurrentKeyword, 1);
-				}
-				j++;
-			}// end while loop
-
-
-		}// end of checking if keyword list is empty
 		
-		if (!options[4]->keywordLoadListOptions.isEmpty() && ui->lineEdit_keywords_search_box->text().isEmpty())
-		{
-			if (ui->tableWidget_Keywords_Queue->item((fileList->size() - 1), 0)->text() == vectorKeywordMatchesCurrentKeyword &&
-				options[4]->keywordLoadListOptions.value(vectorKeywordMatchesCurrentKeyword) == 1)
+			/***********
+			If we  have more elements in list, and if so move to the next item 
+
+			-If current value dosent match the keyword
+			- If current value dosent match the last item
+			Then theres more elements in last
+			********/
+
+			// If Current value does not matches last item, theres more items
+			if (fileList->value(*fileListPtr) != fileList->last() && fileList->value(*fileListPtr) != fileList->last().isEmpty())
 			{
+				qDebug() << "More items in list";
+				(*fileListPtr) += 1;
 				*keywordListNumPtrCounter = 0;
-				thread->quit();
-				worker->abort();
-				ui->pushButton_Start->setText("Start");
-
-				ui->lineEdit_keywords_search_box->setEnabled(true);
-				ui->pushButton_Save_Emails->setEnabled(true);
-				ui->pushButton_Load_Keyword_List->setEnabled(true);
-
-				ui->tabWidget_Harvester_Options->setEnabled(true);
-				ui->tableWidget_Proxy->setEnabled(true);
-				ui->lineEdit_Proxy_Host->setEnabled(true);
-				ui->lineEdit_Proxy_Port->setEnabled(true);
-				ui->pushButton_Add_Proxy->setEnabled(true);
-				ui->checkBox_Delete_Emails->setEnabled(true);
-				ui->checkBox_Delete_Keywords->setEnabled(true);
-
-				fileList->clear();
-				itemsFound = ui->label_Items_Found->text();
-				QMessageBox::information(this, "...", QString("Emails Harvested: ") + itemsFound);
-
+				keywordCompleted = true;
 
 			}
 
-		}
-		
-		
+			// Current value matches the last keyword
+			if (fileList->value(*fileListPtr) == fileList->last()) {
 
-
-		if (options[4]->keywordLoadListOptions.isEmpty() && !ui->lineEdit_keywords_search_box->text().isEmpty())
-		{
-		        
-				 *keywordListNumPtrCounter = 0;
-				 thread->quit();
-				 worker->abort();
-				 ui->pushButton_Start->setText("Start");
-				 
-				 ui->lineEdit_keywords_search_box->setEnabled(true);
-				 ui->pushButton_Save_Emails->setEnabled(true);
-				 ui->pushButton_Load_Keyword_List->setEnabled(true);
-
-				 ui->tabWidget_Harvester_Options->setEnabled(true);
-				 ui->tableWidget_Proxy->setEnabled(true);
-				 ui->lineEdit_Proxy_Host->setEnabled(true);
-				 ui->lineEdit_Proxy_Port->setEnabled(true);
-				 ui->pushButton_Add_Proxy->setEnabled(true);
-				 ui->checkBox_Delete_Emails->setEnabled(true);
-				 ui->checkBox_Delete_Keywords->setEnabled(true);
-
-				 itemsFound = ui->label_Items_Found->text();
-				 QMessageBox::information(this, "...", QString("Emails Harvested: ") + itemsFound);
-
-		}
-
-		
+				qDebug() << "End";
+			}
+		}		
 
 	}// end of checking if counter matched combo box
 
@@ -2482,26 +2380,13 @@ void BeatCrawler::recieverProxyTableSelection(const QItemSelection &selected, co
 
 
 void BeatCrawler::recieverKeywordsQueue() {
-	QStringList keywordKey;
-	QList <int> keywordValue;
-	QHash<QString, int>::const_iterator i = options[4]->keywordLoadListOptions.constBegin();
 	QString filterCurrentKeyword;
 	filterCurrentKeyword = currentKeywordPtr->replace("+", " ");
-	while (i != options[4]->keywordLoadListOptions.constEnd()) {
-		if (!i.key().isEmpty())
-		{
-			keywordKey << i.key();
-		}
-
-		keywordValue << i.value();
-		i++;
-	}
+	
 
 
 	
-
-	
-	for (int row = 0; row < keywordKey.size(); row++)
+	for (int row = 0; row < fileList->size(); row++)
 	{
 		for (int col = 0; col < 2; col++)
 		{
@@ -2515,7 +2400,7 @@ void BeatCrawler::recieverKeywordsQueue() {
 
 				keywordQueueItem = new QTableWidgetItem();
 				keywordQueueItem->setFlags(keywordQueueItem->flags() ^ Qt::ItemIsEditable);
-				keywordQueueItem->setText(keywordKey.at(row));
+				keywordQueueItem->setText(fileList->at(row));
 
 				ui->tableWidget_Keywords_Queue->setItem(row, col, keywordQueueItem);
 			}
@@ -2527,35 +2412,16 @@ void BeatCrawler::recieverKeywordsQueue() {
 				// qDebug() << *currentKeywordPtr;
 				// if current keyword matches a keyword in our row change it to "Processing"
 				// else change it to "Waiting"
-				QString test = keywordKey.at(row);
-				if (filterCurrentKeyword == keywordKey.at(row) && keywordValue.at(row) == 0 && !test.isEmpty())
+				if (filterCurrentKeyword == fileList->at(row) )
 				{
 
-					if (clickedStartStopButton == false) {
-
-						keywordQueueItem = new QTableWidgetItem();
-						keywordQueueItem->setFlags(keywordQueueItem->flags() ^ Qt::ItemIsEditable);
-						keywordQueueItem->setText("Aborted");
-
-						ui->tableWidget_Keywords_Queue->setItem(row, col, keywordQueueItem);
-
-					}
-					if (clickedStartStopButton == true) {
-
-
-						keywordQueueItem = new QTableWidgetItem();
-						keywordQueueItem->setFlags(keywordQueueItem->flags() ^ Qt::ItemIsEditable);
-						keywordQueueItem->setText("Processing...");
-
-						ui->tableWidget_Keywords_Queue->setItem(row, col, keywordQueueItem);
-
-					}
+					
 					//ui->tableWidget_Keywords_Queue->setItem(row, col, new QTableWidgetItem("Processing..."));
 					// ui->tableWidget_Keywords_Queue->item(row,col)->setBackground(QBrush(QColor(250,0,0)));
 				}
 
 				// keyword does not match current keyword
-				if (filterCurrentKeyword != keywordKey.at(row) && keywordValue.at(row) == 0 && !test.isEmpty())
+				if (filterCurrentKeyword != fileList->at(row) )
 				{
 
 					keywordQueueItem = new QTableWidgetItem();
@@ -2566,15 +2432,8 @@ void BeatCrawler::recieverKeywordsQueue() {
 				}
 
 				// if keyword is done
-				if (keywordValue.at(row) == 1 && filterCurrentKeyword != keywordKey.at(row) && !test.isEmpty())
-				{
+				
 
-					keywordQueueItem = new QTableWidgetItem();
-					keywordQueueItem->setFlags(keywordQueueItem->flags() ^ Qt::ItemIsEditable);
-					keywordQueueItem->setText("Completed");
-
-					ui->tableWidget_Keywords_Queue->setItem(row, col, keywordQueueItem);
-				}
 
 			}
 
@@ -2582,17 +2441,12 @@ void BeatCrawler::recieverKeywordsQueue() {
 		}// end of for inner loop
 
 		 // if i is equal to or greater than the keywordKey size, delete pointer because were done with it
-		if (row >= keywordKey.size())
+		if (row >= fileList->size())
 		{
+			qDebug() << "LARGER than SIZE";
 			delete keywordQueueItem;
 		}
 	} // end of for outer loop
-
-	
-
-
-
-
 
 
 }
@@ -2615,9 +2469,9 @@ void BeatCrawler::deleteKeyordsListTable() {
 		//disconnect(fileReader, 0, receiverFileReadKeywordList, 0);
 
 	//}
-	if (!options[4]->keywordLoadListOptions.isEmpty())
+	if (!fileList->isEmpty())
 	{
-		for (int row = 0; row < options[4]->keywordLoadListOptions.size(); row++)
+		for (int row = 0; row < fileList->size(); row++)
 		{
 		
 			for(int col =0; col < 2; col++)
@@ -2630,8 +2484,6 @@ void BeatCrawler::deleteKeyordsListTable() {
 
 		}
 		
-		// clear hash table
-		options[4]->keywordLoadListOptions.clear();
 
 		//clear QStringList
 		fileList->clear();

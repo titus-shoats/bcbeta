@@ -41,6 +41,7 @@ public:
 	void keywordSearchBoxProcess();
 	void keywordListOptionProcess();
 	void setEmailTable();
+	QString toDebug(const QByteArray & line);
 
 
 	private slots:
@@ -171,6 +172,9 @@ private:
 	QStringList FileReadKeywordList;
 	QVector<QString> keywordListLastItem;
 	QStringList *fileList;
+	int *fileListPtr;
+	int fileListNum;
+	bool keywordCompleted;
 	
 
 };
