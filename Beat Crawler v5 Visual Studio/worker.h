@@ -27,13 +27,23 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <cstdio>
 #include <string>
 #include <iostream>
-
+#include <QVector>
+#include <curl.h>
 #include <stdio.h>
 #include <stdlib.h>
-#ifndef WIN32
-#include <unistd.h>
-#endif
-#include "curleasy.h"
+
+#include <QTimer>
+#include <QEventLoop>
+#include <QThread>
+#include <QDebug>
+//#include "curleasy.h"
+//#include "curlmulti.h"
+#include <QRegularExpressionMatchIterator>
+#include <QTextDocumentFragment>
+#include <QList>
+#include <chrono>
+#include <QFileInfo>
+
 
 
 
@@ -65,10 +75,14 @@ public:
 
 
 
-	static void init(CURLM *cm, int i);
-	void test(QString s);
+	//	static void init(CURLM *cm, int i);
+	void processedEmails(QString emails);
 	static void requestParsedEmailList(QString);
 	static size_t curl_write(char *ptr, size_t size, size_t nmemb, void *stream);
+	void doWork(QList<QVector <QString>>vectorSearchOptions, QString lineEdit_keywords_search_box,
+		QList <QString> *proxyServers, QList<int>timerOptions, QString searchResultsPages);
+	void receiverReadFile(QString fileName);
+	void curlProcess(QString url, QString threadName);
 
 
 
@@ -99,16 +113,50 @@ private:
 	int proxyServerCounterNum;
 
 	// increment proxy at cetain number of http request
-	const int incrementProxy = 5;
+	int incrementProxy = 5;
 
 	bool isProxyEmpty;
 	bool canProxyCounterIncrement;
 	bool isStopStartThreadCounter;
 	int * harvesterTimerPtr;
 	int  harvesterTimerNum;
+
+	int * proxyRotateIntervalPtr;
+	int  proxyRotateIntervalNum;
 	//static QStringList *parsedEmailList;
 	//static const Worker *theWorker = new Worker();
 	QList<QStringList>*httpRequestList;
+	bool wStop;
+
+	QVector<QString>vectorSearchEngineOptions;
+	QVector<QString>vectorEmailOptions;
+	QVector<QString>vectorSocialNetworks2;
+	QList <QString> *proxyServers;
+
+	QStringList *fileList;
+	int *fileListPtr;
+	int fileListNum;
+	QString *currentKeywordPtr;
+	QString currentKeyword;
+
+	int *keywordListNumPtrCounter;
+	int keywordListNumPtrNum;
+
+	int *searchEngineNumPtr;
+	int searchEngineNum;
+
+	int *emailOptionsNumPtr;
+	int emailOptionsNum;
+
+	int *socialNetWorkNumPtr;
+	int socialNetWorkNum;
+
+	int *keywordListSearchEngineCounterPtr;
+	int keywordListSearchEngineCounterNum;
+	char errbuf[CURL_ERROR_SIZE];
+
+
+
 
 
 signals:
@@ -124,16 +172,18 @@ signals:
 
 	void workRequested1();
 
+
 	/**
 	* @brief This signal is emitted when process is finished (either by counting 60 sec or being aborted)
 	*/
 	void finished();
 
 	void emitParameters();
-	void emitEmailList(QString s);
+	void emitEmailList(QString emails);
 	void emitKeywordQueue();
 	void senderCurlResponseInfo(QString);
-
+	void emitDataTest(QString s);
+	void emitSenderHarvestResults(QString results);
 
 
 	public slots:
@@ -143,7 +193,7 @@ signals:
 	* Counts 60 sec in this example.
 	* Counting is interrupted if #_aborted is set to true.
 	*/
-	void doWork();
+	//void doWork();
 	//void doneWithParameters(QString * doneParam );
 	//void receiverDoneWithParameters(QString * receiverParam);
 	void getParam(QString url, QString userAgent, QList <QString> *proxyServers);
@@ -155,7 +205,9 @@ signals:
 	void receiverStopThreadCounters(QString stopThreadCounter);
 	void receiverStartThreadCounters(QString startThreadCounter);
 
-	void receiverHarvesterTimer(int harvesterTimer);
+	void receiverAppOptions(int harvesterTimer, int proxyRotateInterval);
+	void stop();
+	void receiverRemoveThreadFileList();
 
 
 

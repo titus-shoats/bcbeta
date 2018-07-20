@@ -52,43 +52,23 @@ BeatCrawler::BeatCrawler(QWidget *parent) :
 	thread = new QThread();
 	thread1 = new QThread();
 	worker = new Worker();
-	//fileReader = new FileReader();
 	worker->moveToThread(thread);
 
-	//fileReader->moveToThread(thread1);
-	//thread1->start();
 
-
-
-	// connect(worker, SIGNAL(valueChanged(QString)), ui->label, SLOT(setText(QString)));
 	connect(worker, SIGNAL(workRequested()), thread, SLOT(start()));
-	connect(thread, SIGNAL(started()), worker, SLOT(doWork()));
 	connect(worker, SIGNAL(finished()), thread, SLOT(quit()), Qt::DirectConnection);
 
-	connect(worker, SIGNAL(emitParameters()), this, SLOT(receiverParameters()));
-	connect(this, SIGNAL(postParam(QString, QString, QList <QString> *)), worker, SLOT(getParam(QString, QString, QList <QString> *)));
-	connect(worker, SIGNAL(emitEmailList(QString)), this, SLOT(receiverEmailList(QString)));
-	connect(this, SIGNAL(emitsenderEmptyProxyServer(QString)), worker, SLOT(receiverEmptyProxyServer(QString)));
-	connect(this, SIGNAL(emitsenderStopThreadCounters(QString)), worker, SLOT(receiverStopThreadCounters(QString)));
-	connect(this, SIGNAL(emitsenderStartThreadCounters(QString)), worker, SLOT(receiverStartThreadCounters(QString)));
-	connect(worker, SIGNAL(senderCurlResponseInfo(QString)), this, SLOT(recieverCurlResponseInfo(QString)));
-	connect(this, SIGNAL(emitSenderHarvesterTimer(int)), worker, SLOT(receiverHarvesterTimer(int)));
-	connect(ui->tableWidget_Proxy->selectionModel(),
-		SIGNAL(selectionChanged(const QItemSelection &, const QItemSelection &)), this,
-		SLOT(recieverProxyTableSelection(const QItemSelection &, const QItemSelection &)));
-	connect(worker, SIGNAL(emitKeywordQueue()), this, SLOT(recieverKeywordsQueue()));
+	//connect(this, SIGNAL(emitSenderReadFile(QString)), fileReader, SLOT(receiverReadFile(QString)));
+	// connect(&threadWorker,&Worker::emitDataTest, this,&BeatCrawler::receiverDataTest);
+	connect(&threadWorker, &Worker::emitSenderHarvestResults, this, &BeatCrawler::receiverDataTest);
+	connect(this, &BeatCrawler::emitRemoveThreadFileList, &threadWorker, &Worker::receiverRemoveThreadFileList);
 
-	//connect(fileReader, SIGNAL(emitSenderFileReadKeywordList(QString, QString, int)), this, SLOT(receiverFileReadKeywordList(QString, QString, int)));
-
-
-
-	//connect(this,SIGNAL(senderOpenProxyFlile(QString)),worker,SLOT(getProxyFile(QString)));
-	// delete selected proxy row
-
+	connect(this, &BeatCrawler::on_stop, &threadWorker, &Worker::stop);
+	connect(&threadWorker, &Worker::emitEmailList, this, &BeatCrawler::receiverEmailList);
+	// connect(this,&BeatCrawler::emitSenderReadFile,&threadWorker,&Worker::receiverReadFile);
 
 
 	emailList = new QList <QString>();
-
 	proxyServers = new QList <QString>();
 	options = new OptionsPtr[numOptions];
 	for (int i = 0; i < numOptions; i++) {
@@ -101,7 +81,7 @@ BeatCrawler::BeatCrawler(QWidget *parent) :
 
 	QStringList emailTableHeaders;
 	emailTableHeaders << "Emails";
-	ui->tableWidget_Emails->setRowCount(60000);
+	ui->tableWidget_Emails->setRowCount(40000);
 	ui->tableWidget_Emails->setColumnCount(1);
 	ui->tableWidget_Emails->setHorizontalHeaderLabels(emailTableHeaders);
 	ui->tableWidget_Emails->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
@@ -111,14 +91,14 @@ BeatCrawler::BeatCrawler(QWidget *parent) :
 
 	QStringList keywordQueueTableHeaders;
 	keywordQueueTableHeaders << "Keywords" << "Status";
-	ui->tableWidget_Keywords_Queue->setRowCount(60000);
+	ui->tableWidget_Keywords_Queue->setRowCount(40000);
 	ui->tableWidget_Keywords_Queue->setColumnCount(2);
 	ui->tableWidget_Keywords_Queue->setHorizontalHeaderLabels(keywordQueueTableHeaders);
 	ui->tableWidget_Keywords_Queue->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
 	ui->tableWidget_Keywords_Queue->resizeRowsToContents();
 
 
-	
+
 	ui->pushButton_Start->setCheckable(true);
 	ui->checkBox_Bing->setChecked(true);
 	ui->checkBox_Email_Gmail->setChecked(true);
@@ -140,12 +120,12 @@ BeatCrawler::BeatCrawler(QWidget *parent) :
 
 
 	emailOptionsNum = 0;
-	searchEngineNum = 0;
 	socialNetWorkNum = 0;
 	keywordLoadListOptionsNum = 0;
 	searchEngineNumPtrAddedBool = false;
-	searchEngineNumPtrNum = 0;
 	currentKeyword = "";
+	currentKeywordPtr = &currentKeyword;
+
 
 	// increments search engine pagination query on each interval
 
@@ -157,14 +137,18 @@ BeatCrawler::BeatCrawler(QWidget *parent) :
 	keywordListSearchEngineCounterPtr = &keywordListSearchEngineCounterNum;
 
 	emailOptionsNumPtr = &emailOptionsNum;
+	searchEngineNumPtrNum = 0;
+	searchEngineNumPtrCounter = &searchEngineNumPtrNum;
+
+
+	searchEngineNum = 0;
 	searchEngineNumPtr = &searchEngineNum;
+
 	socialNetWorkNumPtr = &socialNetWorkNum;
 
 
 	keywordLoadListOptionsNumPtr = &keywordLoadListOptionsNum;
 	searchEngineNumPtrAdded = &searchEngineNumPtrAddedBool;
-	searchEngineNumPtrCounter = &searchEngineNumPtrNum;
-	currentKeywordPtr = &currentKeyword;
 
 	keywordBoxNumPtrNum = 0;
 	keywordBoxNumPtrCounter = &keywordBoxNumPtrNum;
@@ -250,7 +234,9 @@ BeatCrawler::~BeatCrawler()
 
 
 
-
+void BeatCrawler::receiverDataTest(QString s) {
+	qDebug() << "Main Thread " << s;
+}
 
 void BeatCrawler::setProxyTable() {
 
@@ -349,7 +335,8 @@ void BeatCrawler::on_pushButton_Start_clicked(bool checked)
 			ui->pushButton_Start->setChecked(true);
 
 			//Harvester Timer Value
-			emit emitSenderHarvesterTimer(ui->spinBox_Harvester_Timer->value());
+			// Goes in Thread
+			emit emitSenderAppOptions(ui->spinBox_Harvester_Timer->value(), ui->spinBox_Proxy_Rotate_Interval->value());
 
 			// if keyword list is not empty, and keywordsearch box isnt empty add
 			// the keyword from search box into keyword list hash table
@@ -478,8 +465,17 @@ void BeatCrawler::on_pushButton_Start_clicked(bool checked)
 			}
 
 
+			if (!proxyServers->isEmpty())
+			{
+				//options[6]->proxyServers[0] = proxyServers;
+
+			}
 
 
+
+
+
+			/*********XXX3*****/
 
 			//SEARCH RESULTS COMBO BOX
 
@@ -491,13 +487,10 @@ void BeatCrawler::on_pushButton_Start_clicked(bool checked)
 
 
 
-
-
 			// To avoid having two threads running simultaneously, the previous thread is aborted.
 			worker->abort();
 			// If the thread is not running, this will immediately return.
 			thread->wait();
-
 			worker->requestWork();
 
 
@@ -517,6 +510,7 @@ void BeatCrawler::on_pushButton_Start_clicked(bool checked)
 			ui->pushButton_Save_Emails->setEnabled(false);
 			ui->pushButton_Load_Keyword_List->setEnabled(false);
 
+			receiverParameters();
 
 		} //else important options are not checked so we set the start buttin to setChecked(false)
 		else
@@ -530,10 +524,9 @@ void BeatCrawler::on_pushButton_Start_clicked(bool checked)
 
 	if (!checked) {
 
-
 		worker->abort();
 		thread->quit();
-
+		emit on_stop();
 		emit emitsenderStopThreadCounters("Stop");
 		ui->label_Curl_Status->setText("Status: ");
 		clickedStartStopButton = false;
@@ -603,17 +596,17 @@ void::BeatCrawler::getKeywordsSearchBoxOrList() {
 
 void BeatCrawler::receiverFileReadKeywordList(QString fileName, QString data, int keywordSize)
 {
-	 /*********
-	 By default, we cant start harvesing, or initiate the start button
-	 unless the keywordlist is NOT empty. So by default we need to insert
-	 a defautlt key, and value into the hash table. Then we can remove it.
-	 
-	 *****/
+	/*********
+	By default, we cant start harvesing, or initiate the start button
+	unless the keywordlist is NOT empty. So by default we need to insert
+	a defautlt key, and value into the hash table. Then we can remove it.
+
+	*****/
 	if (options[4]->keywordLoadListOptions.isEmpty()) {
 		//options[4]->keywordLoadListOptions["Default"] = 0;
 		//options[4]->keywordLoadListOptions.remove("Default");
 
-		
+
 	}
 	if (options[4]->keywordLoadListOptions.value(data) == 1) {
 		//options[4]->keywordLoadListOptions.remove(data);
@@ -636,16 +629,16 @@ void BeatCrawler::on_pushButton_Load_Keyword_List_clicked()
 {
 
 
-	
+
 
 
 	// To avoid having two threads running simultaneously, the previous thread is aborted.
 	// If the thread is not running, this will immediately return.
 	//if (thread1->isRunning())
 	//{
-		
-		//connect(thread1, SIGNAL(started()), thread1, SLOT(quit()));
-		//fileReader->abort();
+
+	//connect(thread1, SIGNAL(started()), thread1, SLOT(quit()));
+	//fileReader->abort();
 
 	//}
 
@@ -655,22 +648,22 @@ void BeatCrawler::on_pushButton_Load_Keyword_List_clicked()
 
 	//{
 
-		// emit a file name with keywords, and receive it within the thread for processing
-		//connect(this, SIGNAL(emitSenderReadFile(QString)), fileReader, SLOT(receiverReadFile(QString)));
-		//connect(fileReader, SIGNAL(workRequested()), thread1, SLOT(start()));
+	// emit a file name with keywords, and receive it within the thread for processing
+	//connect(this, SIGNAL(emitSenderReadFile(QString)), fileReader, SLOT(receiverReadFile(QString)));
+	//connect(fileReader, SIGNAL(workRequested()), thread1, SLOT(start()));
 
-		/*****
-		Disconnect, and Connect the emitSenderFileReadKeywordList signal because we need to connect to it again with fresh data
-		***/
+	/*****
+	Disconnect, and Connect the emitSenderFileReadKeywordList signal because we need to connect to it again with fresh data
+	***/
 
 	//}
 
-	
+
 
 	//ui->tableWidget_Keywords_Queue->clear();
 	//ui->tableWidget_Keywords_Queue->setRowCount(0);
 	//ui->tableWidget_Keywords_Queue->setColumnCount(0);
-	
+
 
 	//options[4]->keywordLoadListOptions.clear();
 	//QString fileName = QFileDialog::getOpenFileName(this, "Open text file", "");
@@ -686,18 +679,18 @@ void BeatCrawler::on_pushButton_Load_Keyword_List_clicked()
 	We emit a signal from main thread to fileReader thread that sends the fileName we want to read and process.
 	We also connect a signal from fileReader thread that sends out Keywords that we processed back to main thread****/
 	//if (fileExt == "txt") {
-		//connect(fileReader, SIGNAL(emitSenderFileReadKeywordList(QString, QString, int)), this, SLOT(receiverFileReadKeywordList(QString, QString, int)));
+	//connect(fileReader, SIGNAL(emitSenderFileReadKeywordList(QString, QString, int)), this, SLOT(receiverFileReadKeywordList(QString, QString, int)));
 
-		//emit emitSenderReadFile(fileName);
-		// disables start button until we have fully loaded the text file
-		// we enable the start button within lineEdit_Keyword_List_File_Location slot because our fileReader
-		// thread has sent us our file data back to us fully
-		//ui->pushButton_Start->setEnabled(false);
+	//emit emitSenderReadFile(fileName);
+	// disables start button until we have fully loaded the text file
+	// we enable the start button within lineEdit_Keyword_List_File_Location slot because our fileReader
+	// thread has sent us our file data back to us fully
+	//ui->pushButton_Start->setEnabled(false);
 	//}
 
 	//else
 	//{
-		//QMessageBox::warning(this, "...", "Please select a text file");
+	//QMessageBox::warning(this, "...", "Please select a text file");
 	//}
 
 	//file.close();
@@ -715,47 +708,50 @@ void BeatCrawler::on_pushButton_Load_Keyword_List_clicked()
 	QFile file(fileName);
 	QFileInfo fi(file.fileName());
 	QString fileExt = fi.completeSuffix();;
-	QHash<QString, int>hashKeywordLoadList;
 	QString strings;
 	QString str;
+	if (fileExt == "txt") {
+
+		if (!file.open(QIODevice::ReadOnly)) {
+			//QMessageBox::warning(this,"...","error in opening keyword file");
+			return;
+		}
+		QFuture<void> sendFileName = QtConcurrent::run(&this->threadWorker, &Worker::receiverReadFile, QString(file.fileName()));
 
 
-	if (!file.open(QIODevice::ReadOnly)) {
-		//QMessageBox::warning(this,"...","error in opening keyword file");
-		return;
-	}
-	//QByteArray ba = file.readAll();
-	QTextStream ts(&file);
-	while (!ts.atEnd()) {
-		QApplication::processEvents();
-		str = ts.readLine();
-		//str = str.split(QRegExp("[\r\n]"), QString::SkipEmptyParts);
-		*fileList << str;
-
-		
-
-
-	}
-	
-
-	for (int row = 0; row < fileList->size(); row++)
-	{
-		
-
-		for (int col = 0; col < 2; col++)
-		{
-			if (col == 0) {
-				ui->tableWidget_Keywords_Queue->setItem(row, col, new QTableWidgetItem(fileList->at(row)));
-
-			}
-
-			if (col == 1) {
-				ui->tableWidget_Keywords_Queue->setItem(row, col, new QTableWidgetItem(""));
-			}
+		QTextStream ts(&file);
+		while (!ts.atEnd()) {
+			QApplication::processEvents();
+			str = ts.readLine();
+			*fileList << str;
 		}
 
+		for (int row = 0; row < fileList->size(); row++)
+		{
+
+
+			for (int col = 0; col < 2; col++)
+			{
+				if (col == 0) {
+					ui->tableWidget_Keywords_Queue->setItem(row, col, new QTableWidgetItem(fileList->at(row)));
+
+				}
+
+				if (col == 1) {
+					ui->tableWidget_Keywords_Queue->setItem(row, col, new QTableWidgetItem(""));
+				}
+			}
+
+		}// end for loop
+
+		ui->lineEdit_Keyword_List_File_Location->setText(file.fileName());
+
 	}
-	qDebug() << fileList->size();
+	else // else user needs to select txt file
+	{
+		QMessageBox::information(this, "...", "Please selext a text file");
+
+	}
 
 	file.close();
 
@@ -768,7 +764,7 @@ QString BeatCrawler::toDebug(const QByteArray & line) {
 
 	for (int i = 0; i < line.size(); i++) {
 		c = line[i];
-		if (c >= 0x20 && c<= 126) {
+		if (c >= 0x20 && c <= 126) {
 			s.append(c);
 		}
 		else {
@@ -780,7 +776,7 @@ QString BeatCrawler::toDebug(const QByteArray & line) {
 void BeatCrawler::disableStartButtonLoadKeywordList() {
 	ui->pushButton_Start->setEnabled(false);
 
-	
+
 }
 
 void BeatCrawler::enableStartButtonLoadKeywordList() {
@@ -853,7 +849,6 @@ void BeatCrawler::receiverParameters()
 
 {
 
-	QString curlParam;
 	QString searchEngineParam;
 	QString castSearchQueryNumPtr;
 	QString socialNetWork;
@@ -863,7 +858,6 @@ void BeatCrawler::receiverParameters()
 	QString currentKeywordSearchBoxKeyword;
 	QString filterCurrentKeyword;
 	QString itemsFound;
-	QString vectorKeywordMatchesCurrentKeyword;
 
 
 
@@ -881,20 +875,19 @@ void BeatCrawler::receiverParameters()
 	to check its tagged status.
 
 	****/
-	 
 
-	// *currentKeywordPtr =  fileList->at(*fileListPtr);
+
+
+	// THREAD
 	if (!fileList->isEmpty()) {
 		*currentKeywordPtr = fileList->at(*fileListPtr); // on load is 0 which is the first index value
-		qDebug() <<"Current index " << *fileListPtr;
-		qDebug() << "current keyword " << *currentKeywordPtr;
+														 //qDebug() <<"Current index " << *fileListPtr;
+														 //qDebug() << "current keyword " << *currentKeywordPtr;
 	}
 
 
-	
 
-	// ui->label_Current_Keyword->setText("Current Keyword: " + *currentKeywordPtr);
-
+	// THREAD
 	(*keywordListNumPtrCounter) += 1;
 
 
@@ -903,54 +896,31 @@ void BeatCrawler::receiverParameters()
 
 
 
-
-
-	/*******Email Options******/
-
 	vectorSearchEngineOptions.clear();
-
 	for (int i = 0; i < vectorSearchEngineOptions.size(); i++) {
 
 		vectorSearchEngineOptions.removeAll(vectorSearchEngineOptions.at(i));
-
-
-
 	}
 
 
 
-
-
 	if (ui->checkBox_Google->isChecked()) {
-
 		vectorSearchEngineOptions.resize(1);
-
 		vectorSearchEngineOptions.push_back(options[0]->searchEngineOptions[0]);
-
-
-
-
-
 	}
 
 
 
 	if (ui->checkBox_Bing->isChecked()) {
-
 		vectorSearchEngineOptions.resize(2);
-
 		vectorSearchEngineOptions.push_back(options[0]->searchEngineOptions[1]);
-
 	}
 
 
 
 	if (ui->checkBox_Yahoo->isChecked()) {
-
 		vectorSearchEngineOptions.resize(3);
-
 		vectorSearchEngineOptions.push_back(options[0]->searchEngineOptions[2]);
-
 	}
 
 
@@ -958,24 +928,16 @@ void BeatCrawler::receiverParameters()
 
 
 	// removes empty index
-
 	for (int i = 0; i < vectorSearchEngineOptions.size(); i++) {
-
 		vectorSearchEngineOptions.removeAll("");
-
-
-
 	}
 
 
-
+	// THREAD
 	if (vectorSearchEngineOptions.size() == *searchEngineNumPtr) {
-
 		*searchEngineNumPtr = 0; // done
-
-
-
 	}
+
 
 	if (vectorSearchEngineOptions.contains(vectorSearchEngineOptions.at(*searchEngineNumPtr))) {
 
@@ -995,7 +957,6 @@ void BeatCrawler::receiverParameters()
 
 
 
-	//  if(searchEngine == "http://google.com" ){
 
 
 
@@ -1008,13 +969,8 @@ void BeatCrawler::receiverParameters()
 		/*******Email Options******/
 
 		vectorEmailOptions.clear();
-
 		for (int i = 0; i < vectorEmailOptions.size(); i++) {
-
 			vectorEmailOptions.removeAll(vectorEmailOptions.at(i));
-
-
-
 		}
 
 
@@ -1058,13 +1014,8 @@ void BeatCrawler::receiverParameters()
 
 
 		// removes empty index
-
 		for (int i = 0; i <vectorEmailOptions.size(); i++) {
-
 			vectorEmailOptions.removeAll("");
-
-
-
 		}
 
 
@@ -1075,9 +1026,8 @@ void BeatCrawler::receiverParameters()
 
 			*emailOptionsNumPtr = 0; // done
 
-
-
 		}
+
 
 		if (vectorEmailOptions.contains(vectorEmailOptions.at(*emailOptionsNumPtr))) {
 
@@ -1110,7 +1060,7 @@ void BeatCrawler::receiverParameters()
 
 
 
-
+		/*******XXXX******/
 		if (ui->checkBox_Social_Instagram->isChecked()) {
 
 			vectorSocialNetworks2.resize(1);
@@ -1207,6 +1157,7 @@ void BeatCrawler::receiverParameters()
 
 		castSearchQueryNumPtr = QString::number(*keywordListSearchEngineCounterPtr);
 
+		/*********XX1*******/
 
 		/**********
 		if search box is not empty assign search box value to currentKeywordSearchBoxKeyword
@@ -1214,7 +1165,7 @@ void BeatCrawler::receiverParameters()
 		on its own.
 
 		--->>> If both keywordLoadListOptions, and searchbox keyword is NOT empty,
-		were going to add the search bpx keyword to the keywordLoadListOptions Hash Table
+		were going to add the search box keyword to the keywordLoadListOptions Hash Table
 		to be included for processing.
 
 		************/
@@ -1259,17 +1210,12 @@ void BeatCrawler::receiverParameters()
 
 
 		/****Continues email quene***/
-
 		if (*keywordListSearchEngineCounterPtr == 100) {
 
 			if (*emailOptionsNumPtr <= vectorEmailOptions.size()) {
 
 				(*emailOptionsNumPtr) += 1;
-
-
-
 			}
-
 		}
 
 
@@ -1281,15 +1227,9 @@ void BeatCrawler::receiverParameters()
 		/****Continues social network quene***/
 
 		if (*keywordListSearchEngineCounterPtr == 100) {
-
 			if (*socialNetWorkNumPtr <= vectorSocialNetworks2.size()) {
-
 				(*socialNetWorkNumPtr) += 1;
-
-
-
 			}
-
 		}
 
 
@@ -1303,127 +1243,30 @@ void BeatCrawler::receiverParameters()
 		/*******Stops social network quene, and moves on to next******/
 
 		if (*keywordListSearchEngineCounterPtr == 100) {
-
 			*keywordListSearchEngineCounterPtr = 0;
 
-
-
-			// if social network pointer, and email options pointer is
-
+			// if social network pointer, and email options pointer is equal
 			//than the size of  socialNetworkOptions arrary,
-
 			//then were done, and move on
-
-			if (*socialNetWorkNumPtr == vectorSocialNetworks2.size()) {
-
-				//(*socialNetWorkNumPtr)+=0;
-
-				//(*socialNetWorkNumPtr)+=1; //
-
-				//qDebug() << "MOVE ON";
-
-				// add one to it if theres a element before it
-
-				//vectorSocialNetwork   get current el, check to see if theres a el after it, then
-
-				// increment it
-
-				// (*searchEngineNumPtr)+=1;
-
-				// vectorSearchEngineOptions.at(*searchEngineNumPtr)
-
-
+			if (*socialNetWorkNumPtr == vectorSocialNetworks2.size())
+			{
 
 				// if the last item in vector is true, and dosent match our current value
-
 				// theres more elements after our current element, we need
-
 				// this to make sure out pointer dosent get out of a range/QVector out of range.
 
-
-
-				if (!vectorSearchEngineOptions.last().isEmpty()) {
-
+				if (!vectorSearchEngineOptions.last().isEmpty())
+				{
 					vectorSearchEngineOptionsLastItem = vectorSearchEngineOptions.last();
-
 					if (vectorSearchEngineOptionsLastItem != vectorSearchEngineOptions.at(*searchEngineNumPtr)) {
-
 						(*searchEngineNumPtr) += 1;
-
 					}
-
 				}
-
-
-
-				if (vectorSearchEngineOptions.size() == *searchEngineNumPtr) {
-
-					// *searchEngineNumPtr+=1; // done
-
-
-
-				}
-
-				/****Continues search engine quene***/
-
-				// (*searchEngineNumPtr )+=1; // this should only be used when were done scraping
-
-
-
-
-
-				/****Continues search engine quene***/
-
-				if (*keywordListSearchEngineCounterPtr == 100) {
-
-					// cant use above condition because were resetting
-
-					//*keywordListSearchEngineCounterPtr to 0
-
-					// (*searchEngineNumPtr )+=1; // this should only be used when were done scraping
-
-				}
-
-
-
-				/*****
-
-				// MOVE ON TO NEXT
-
-				//
-
-				if next checkbox option is not checked skip it/add two two pointer
-
-				by incrementing pointer by 2 we skip the checkbox option thats empty,
-
-				and go to the next one, else dont skip it, and go to it --> increment by 1
-
-				*****/
-
-
-
-				//                               if(!ui->checkBox_Bing->isChecked()){
-
-				//                                      (*searchEngineNumPtr)+=2;
-
-				//                               }
-
-				//                               if(ui->checkBox_Bing->isChecked()){
-
-				//                                      (*searchEngineNumPtr)+=1;
-
-				//                               }
-
-
-
 			}
 
 
-
 			if (*emailOptionsNumPtr > vectorEmailOptions.size()) {
-
 				*emailOptionsNumPtr = 0;
-
 			}
 
 		}
@@ -1639,11 +1482,7 @@ void BeatCrawler::receiverParameters()
 
 
 		if (vectorSocialNetworks2.size() == *socialNetWorkNumPtr) {
-
 			*socialNetWorkNumPtr = 0; // done
-
-
-
 		}
 
 		if (vectorSocialNetworks2.contains(vectorSocialNetworks2.at(*socialNetWorkNumPtr))) {
@@ -2199,22 +2038,34 @@ void BeatCrawler::receiverParameters()
 	}
 
 	// sending params/options signal after we done
-	emit postParam(searchEngineParam, options[5]->userAgentsOptions[0], proxyServers);
-	//qDebug() << options[5]->userAgentsOptions[0];
+	//emit postParam(searchEngineParam, options[5]->userAgentsOptions[0], proxyServers);
 
 
+	// qDebug() << "SIZE "<< vectorSearchEngineOptions.size();
+	// qDebug() << "DATA "<< vectorSearchEngineOptions;
+	vectorSearchOptions.insert(0, vectorSearchEngineOptions);
+	vectorSearchOptions.insert(1, vectorEmailOptions);
+	vectorSearchOptions.insert(2, vectorSocialNetworks2);
 
-	
-	qDebug() << *fileListPtr;
+	timerOptions.insert(0, ui->spinBox_Harvester_Timer->value());
+	timerOptions.insert(1, ui->spinBox_Proxy_Rotate_Interval->value());
+
+
+	QFuture<void> multithread = QtConcurrent::run(&this->threadWorker
+		, &Worker::doWork, vectorSearchOptions, ui->lineEdit_keywords_search_box->text(), proxyServers,
+		timerOptions, ui->comboBox_search_results_amount->currentText());
+
+
+	//qDebug() << *fileListPtr;
 	/****if timer is less or equal to search results combox box***/
 	if (QString::number(*keywordListNumPtrCounter) == ui->comboBox_search_results_amount->currentText())
 	{
 		if (!fileList->empty()) {
 			filterCurrentKeyword = *currentKeywordPtr;
 			filterCurrentKeyword = filterCurrentKeyword.replace("+", " ");
-		
+
 			/***********
-			If we  have more elements in list, and if so move to the next item 
+			If we  have more elements in list, and if so move to the next item
 
 			-If current value dosent match the keyword
 			- If current value dosent match the last item
@@ -2231,12 +2082,65 @@ void BeatCrawler::receiverParameters()
 
 			}
 
+
 			// Current value matches the last keyword
 			if (fileList->value(*fileListPtr) == fileList->last()) {
 
-				qDebug() << "End";
+				if (*fileListPtr > fileList->size()) {
+					*fileListPtr = 0;  // just in case the pointer goes beyond fileList size()
+				}
+				keywordCompleted = true;
+				*keywordListNumPtrCounter = 0;
+				thread->quit();
+				worker->abort();
+				ui->pushButton_Start->setText("Start");
+				ui->pushButton_Start->setChecked(false);
+				ui->lineEdit_keywords_search_box->setEnabled(true);
+				ui->pushButton_Save_Emails->setEnabled(true);
+				ui->pushButton_Load_Keyword_List->setEnabled(true);
+
+				ui->tabWidget_Harvester_Options->setEnabled(true);
+				ui->tableWidget_Proxy->setEnabled(true);
+				ui->lineEdit_Proxy_Host->setEnabled(true);
+				ui->lineEdit_Proxy_Port->setEnabled(true);
+				ui->pushButton_Add_Proxy->setEnabled(true);
+				ui->checkBox_Delete_Emails->setEnabled(true);
+				ui->checkBox_Delete_Keywords->setEnabled(true);
+
+				fileList->clear();
+				itemsFound = ui->label_Items_Found->text();
+				QMessageBox::information(this, "...", QString("Emails Harvested: ") + itemsFound);
+				*fileListPtr = 0;
+
 			}
-		}		
+
+		}// end of checking if filelist is empty
+
+		if (fileList->isEmpty() && !ui->lineEdit_keywords_search_box->text().isEmpty())
+		{
+
+			*fileListPtr = 0;
+			thread->quit();
+			worker->abort();
+			ui->pushButton_Start->setText("Start");
+			ui->pushButton_Start->setChecked(false);
+			ui->lineEdit_keywords_search_box->setEnabled(true);
+			ui->pushButton_Save_Emails->setEnabled(true);
+			ui->pushButton_Load_Keyword_List->setEnabled(true);
+
+			ui->tabWidget_Harvester_Options->setEnabled(true);
+			ui->tableWidget_Proxy->setEnabled(true);
+			ui->lineEdit_Proxy_Host->setEnabled(true);
+			ui->lineEdit_Proxy_Port->setEnabled(true);
+			ui->pushButton_Add_Proxy->setEnabled(true);
+			ui->checkBox_Delete_Emails->setEnabled(true);
+			ui->checkBox_Delete_Keywords->setEnabled(true);
+
+			itemsFound = ui->label_Items_Found->text();
+			QMessageBox::information(this, "...", QString("Emails Harvested: ") + itemsFound);
+
+
+		}
 
 	}// end of checking if counter matched combo box
 
@@ -2382,15 +2286,15 @@ void BeatCrawler::recieverProxyTableSelection(const QItemSelection &selected, co
 void BeatCrawler::recieverKeywordsQueue() {
 	QString filterCurrentKeyword;
 	filterCurrentKeyword = currentKeywordPtr->replace("+", " ");
-	
 
 
-	
+
+
 	for (int row = 0; row < fileList->size(); row++)
 	{
 		for (int col = 0; col < 2; col++)
 		{
-			
+
 			// if current keyword matches this item, change set item string to "Currently Processing"
 			// if keyword is 1/done change it to "Complete"
 			// if keyword is 0 /not dont change it to "Waiting.."
@@ -2412,17 +2316,48 @@ void BeatCrawler::recieverKeywordsQueue() {
 				// qDebug() << *currentKeywordPtr;
 				// if current keyword matches a keyword in our row change it to "Processing"
 				// else change it to "Waiting"
-				if (filterCurrentKeyword == fileList->at(row) )
+				if (filterCurrentKeyword == fileList->at(row))
 				{
 
-					
+
 					//ui->tableWidget_Keywords_Queue->setItem(row, col, new QTableWidgetItem("Processing..."));
 					// ui->tableWidget_Keywords_Queue->item(row,col)->setBackground(QBrush(QColor(250,0,0)));
+
+					if (clickedStartStopButton == false) {
+
+						keywordQueueItem = new QTableWidgetItem();
+						keywordQueueItem->setFlags(keywordQueueItem->flags() ^ Qt::ItemIsEditable);
+						keywordQueueItem->setText("Aborted");
+
+						ui->tableWidget_Keywords_Queue->setItem(row, col, keywordQueueItem);
+
+					}
+					else if (clickedStartStopButton == true) {
+
+
+						keywordQueueItem = new QTableWidgetItem();
+						keywordQueueItem->setFlags(keywordQueueItem->flags() ^ Qt::ItemIsEditable);
+						keywordQueueItem->setText("Waiting...");
+
+						ui->tableWidget_Keywords_Queue->setItem(row, col, keywordQueueItem);
+
+					}
 				}
 
-				// keyword does not match current keyword
-				if (filterCurrentKeyword != fileList->at(row) )
+
+				// if keyword is done
+				if (filterCurrentKeyword == fileList->at(row))
 				{
+
+					qDebug() << "Completed";
+					keywordQueueItem = new QTableWidgetItem();
+					keywordQueueItem->setFlags(keywordQueueItem->flags() ^ Qt::ItemIsEditable);
+					keywordQueueItem->setText("Processing");
+
+					//Possible erros because of minus of row which might be 0-1??
+					ui->tableWidget_Keywords_Queue->setItem((row - 1), col, keywordQueueItem);
+				}
+				else {
 
 					keywordQueueItem = new QTableWidgetItem();
 					keywordQueueItem->setFlags(keywordQueueItem->flags() ^ Qt::ItemIsEditable);
@@ -2431,8 +2366,6 @@ void BeatCrawler::recieverKeywordsQueue() {
 					ui->tableWidget_Keywords_Queue->setItem(row, col, keywordQueueItem);
 				}
 
-				// if keyword is done
-				
 
 
 			}
@@ -2456,43 +2389,35 @@ void BeatCrawler::deleteKeyordsListTable() {
 	//*currentKeywordPtr = "";
 	//if (thread1->isRunning())
 	//{
-		//connect(thread1, SIGNAL(started()), thread1, SLOT(terminate()));
-		//if (disconnect(fileReader, &FileReader::emitSenderFileReadKeywordList, 0, 0) == true)
-		//{
-			//ui->label_Keywords_Count->setText(" ");
-			//connect(fileReader, SIGNAL(emitSenderFileReadKeywordList(QString, QString, int)), this, SLOT(receiverFileReadKeywordList(QString, QString, int)));
-		//}
+	//connect(thread1, SIGNAL(started()), thread1, SLOT(terminate()));
+	//if (disconnect(fileReader, &FileReader::emitSenderFileReadKeywordList, 0, 0) == true)
+	//{
+	//ui->label_Keywords_Count->setText(" ");
+	//connect(fileReader, SIGNAL(emitSenderFileReadKeywordList(QString, QString, int)), this, SLOT(receiverFileReadKeywordList(QString, QString, int)));
+	//}
 	//	else {
-		//	qDebug() << "ERROR DISCONNECTING -- emitSenderFileReadKeywordList Signal from fileReader Obbject";
-		//}
-		//receiverFileReadKeywordList
-		//disconnect(fileReader, 0, receiverFileReadKeywordList, 0);
+	//	qDebug() << "ERROR DISCONNECTING -- emitSenderFileReadKeywordList Signal from fileReader Obbject";
+	//}
+	//receiverFileReadKeywordList
+	//disconnect(fileReader, 0, receiverFileReadKeywordList, 0);
 
 	//}
 	if (!fileList->isEmpty())
 	{
 		for (int row = 0; row < fileList->size(); row++)
 		{
-		
-			for(int col =0; col < 2; col++)
+			for (int col = 0; col < 2; col++)
 			{
-			
 				ui->tableWidget_Keywords_Queue->setItem(row, col, new QTableWidgetItem(""));
 				//ui->tableWidget_Emails->hideRow(i);
-			
 			}
-
 		}
-		
 
 		//clear QStringList
 		fileList->clear();
-
-
+		emit emitRemoveThreadFileList();
 	}
-
 	ui->lineEdit_Keyword_List_File_Location->setText(" ");
-
 }
 
 void BeatCrawler::deleteEmailsListTable() {
@@ -2680,7 +2605,6 @@ void BeatCrawler::on_checkBox_Delete_Keywords_clicked()
 	{
 		QTimer::singleShot(5, this, SLOT(deleteKeyordsListTable()));
 		ui->lineEdit_Keyword_List_File_Location->setText("");
-
 	}
 }
 
@@ -2758,5 +2682,7 @@ void BeatCrawler::on_pushButton_Save_Emails_clicked()
 		file.close();
 	}
 }
+
+
 
 

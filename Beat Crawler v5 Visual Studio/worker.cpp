@@ -21,20 +21,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "worker.h"
-#include <QTimer>
-#include <QEventLoop>
-#include <QThread>
-#include <QDebug>
-//#include "curleasy.h"
-//#include "curlmulti.h"
-#include <QRegularExpressionMatchIterator>
-#include <QTextDocumentFragment>
-#include <QList>
-#include <chrono>
 
 
-#define MAX_WAIT_MSECS 30*1000 /* Wait max. 30 seconds */
-#define CNT 4
 //QStringList *Worker::parsedEmailList;
 
 
@@ -42,8 +30,7 @@ std::string buffer;
 Worker::Worker(QObject *parent) :
 	QObject(parent)
 {
-	_working = false;
-	_abort = false;
+
 	params = "";
 	paramsPtr = new QList <QString>();
 	urlQueryParam = new QString();
@@ -58,6 +45,33 @@ Worker::Worker(QObject *parent) :
 	harvesterTimerPtr = reinterpret_cast<int *>(&harvesterTimerNum);
 	httpRequestList = new QList<QStringList>();
 
+	proxyRotateIntervalNum = 0;
+	proxyRotateIntervalPtr = reinterpret_cast<int *>(&proxyRotateIntervalNum);
+	wStop = false;
+
+
+	proxyServers = new QList <QString>();
+	fileList = new QStringList();
+
+	fileListNum = 0;
+	fileListPtr = &fileListNum;
+	currentKeyword = "";
+	currentKeywordPtr = &currentKeyword;
+	keywordListNumPtrNum = 0;
+	keywordListNumPtrCounter = &keywordListNumPtrNum;
+	searchEngineNum = 0;
+	searchEngineNumPtr = &searchEngineNum;
+	emailOptionsNum = 0;
+	emailOptionsNumPtr = &emailOptionsNum;
+	socialNetWorkNum = 0;
+	socialNetWorkNumPtr = &socialNetWorkNum;
+	keywordListSearchEngineCounterNum = 0;
+	keywordListSearchEngineCounterPtr = &keywordListSearchEngineCounterNum;
+	errbuf[0] = 0;
+
+
+
+
 }
 
 Worker::~Worker()
@@ -65,17 +79,13 @@ Worker::~Worker()
 	delete paramsPtr;
 	delete urlQueryParam;
 	delete proxies;
-	//delete parsedEmailList;
 	delete httpRequestList;
+	delete fileList;
+	delete proxyServers;
 }
 
 void Worker::requestWork()
 {
-	mutex.lock();
-	_working = true;
-	_abort = false;
-	qDebug() << "First Thread Request worker start in Thread " << thread()->currentThreadId();
-	mutex.unlock();
 
 	emit workRequested();
 
@@ -83,209 +93,848 @@ void Worker::requestWork()
 
 void Worker::abort()
 {
-	mutex.lock();
-	if (_working) {
-		_abort = true;
-		qDebug() << "First Thread Request worker aborting in Thread " << thread()->currentThreadId();
-	}
-	mutex.unlock();
+
 }
 
-void Worker::doWork()
+void Worker::stop()
 {
+	wStop = true;
+}
 
-	qDebug() << "First Thread Starting worker process in Thread " << thread()->currentThreadId();
+void Worker::receiverRemoveThreadFileList()
+{
+	fileList->clear();
+
+}
+
+void Worker::receiverReadFile(QString fileName)
+{
+	QFile file(fileName);
+	QFileInfo fi(file.fileName());
+	QString fileExt = fi.completeSuffix();;
+	QString strings;
+	QString str;
+	if (!file.open(QFile::ReadOnly))
+	{
+		qDebug() << "ERROR OPENING FILE" << file.error();
+	}
+
+	while (!file.atEnd())
+	{
+
+		QTextStream ts(&file);
+		while (!ts.atEnd()) {
+			str = ts.readLine();
+			*fileList << str;
+			qDebug() << *fileList;
+		}
+
+		file.close();
+
+	}
+
+}
 
 
 
+void Worker::curlProcess(QString url, QString threadName)
+{
+	CURL *curl;
+	CURLcode res;
+	curl = curl_easy_init();
+	if (curl)
+	{
+		std::string urlString = url.toStdString();
+		curl_easy_setopt(curl, CURLOPT_URL, urlString.c_str());
+
+		/* google.com is redirected, so we tell LibCurl to follow redirection */
+		curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+		curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, FALSE);
+		curl_easy_setopt(curl, CURLOPT_USERAGENT, "Mozilla/5.0 (Linux; U; Android 4.0.3; ko-kr; LG-L160L Build/IML74K) AppleWebkit/534.30 (KHTML, like Gecko) Version/4.0 Mobile Safari/534.30");
+		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_write);
+		curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errbuf);
+
+		curl_easy_setopt(curl, CURLOPT_WRITEDATA, this);
+		/* Perform the request, res will get the return code */
+		res = curl_easy_perform(curl);
+		/* Check for errors */
+		if (res != CURLE_OK)
+			fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+		long httpResponseCode;
+		char* effectiveURL;
+		curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &httpResponseCode);
+		curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL, &effectiveURL);
+
+		/*********HTTP CODE*******/
+		// Log errors,or show message to user if response code is not 200
+		if (httpResponseCode == 200 && res == CURLE_OK) {
+
+			// emit senderCurlResponseInfo("Request Succeded");
+			qDebug() << "HTTP  Code--> " << httpResponseCode << " " << threadName
+				<< " - URL-> " << effectiveURL << "\n";
+		}
+
+		if (httpResponseCode == 503) {
+
+			qDebug() << "503 ERROR CODE " << threadName << "URL-> " << effectiveURL;
+			//  emit senderCurlResponseInfo("503");
+		}
+
+		if (res != CURLE_OK) {
+
+			switch (res)
+			{
+			case 5: qDebug() << threadName << " Curl code-> " << res << " Message->" << errbuf
+				<< "URL-> " << effectiveURL;
+				break;
+			case 7: qDebug() << threadName << " Curl code-> " << res << " Message->" << errbuf
+				<< "URL-> " << effectiveURL;;
+				break;
+			case 35: qDebug() << threadName << " Curl code-> " << res << " Message->" << errbuf
+				<< "URL-> " << effectiveURL;;
+				break;
+			case 56: qDebug() << threadName << " Curl code-> " << res << " Message->" << errbuf
+				<< "URL-> " << effectiveURL;;
+				break;
 
 
-	/**************
-	We increment i 60 times
-	Anytime i is increment we have a set interval that does something
-	In our case scrape -- so every time I get incremented we have a scraping interval
-	So we have to send a signal here to change the 60 to something else
-	************/
-	//for (int counter = 0; counter < 100000; counter ++) {
-	for (;;) {
-		// Checks if the process should be aborted
-		mutex.lock();
-		bool abort = _abort;
-		mutex.unlock();
-		// *workerCounter = counter;
+			default: qDebug() << threadName << " Default Switch Statement Curl Code--> " << res
+				<< "URL-> " << effectiveURL;;
 
-		if (abort) {
-			qDebug() << "First Thread Aborting worker process in Thread " << thread()->currentThreadId();
+			}
+			/**************
+			*checks curl erros codes
+			*
+			* 5 -- Couldn't resolve proxy. The given proxy host could not be resolved.
+			* 7 -- Failed to connect() to host or proxy.
+			*
+			*********/
+			if (res == 5 || res == 7 || res == 35)
+			{
+				// emit senderCurlResponseInfo("Proxy Error");
+				qDebug() << "Proxy Error" << "URL-> " << effectiveURL << " " << threadName;
+			}
+		}
+
+		/* Always cleanup */
+		curl_easy_cleanup(curl);
+	}
+}
+
+void Worker::doWork(QList<QVector <QString>>vectorSearchOptions,
+	QString lineEdit_keywords_search_box, QList <QString> *proxyServers,
+	QList<int>timerOptions, QString searchResultsPages)
+{
+	QString searchEngineParam;
+	QString castSearchQueryNumPtr;
+	QString socialNetWork;
+	QString email;
+	QString searchEngine;
+	QString vectorSearchEngineOptionsLastItem;
+	QString currentKeywordSearchBoxKeyword;
+	QString filterCurrentKeyword;
+	QString itemsFound;
+	QVector<QString>vectorSearchEngineOptions = vectorSearchOptions.at(0);
+	QVector<QString>vectorEmailOptions = vectorSearchOptions.at(1);
+	QVector<QString>vectorSocialNetworks2 = vectorSearchOptions.at(2);
+	int harvesterTimer = timerOptions.at(0);
+	int proxyRotateInterval = timerOptions.at(1);
+
+	int appTimer;
+	/*********
+	Chrono is namespace, meaning a certain class will on be in its scope
+	Within this namespace we have a class thats a template name seconds, that takes a long long type -- which is seconds
+	in our case. So to create a instance of seconds class, we need to create a object, that takes a long. In our case s(harvesterTimer)
+	The s object of type seconds, also has members as well
+	*******/
+	std::chrono::seconds s(harvesterTimer);
+	std::chrono::milliseconds ms = std::chrono::duration_cast<std::chrono::milliseconds>(s);
+	// cast long long to int
+	appTimer = static_cast<int>(ms.count());
+	wStop = false;
+
+	if (!lineEdit_keywords_search_box.isEmpty() && fileList->isEmpty() ||
+		!lineEdit_keywords_search_box.isEmpty() && !fileList->isEmpty())
+	{
+		fileList->removeAt(0);
+		fileList->insert(0, lineEdit_keywords_search_box);
+
+	}
+
+
+	for (int i = 0; i < 999999; i++)
+	{
+		if (wStop) {
+			lineEdit_keywords_search_box.clear();
+			*keywordListNumPtrCounter = 0;
+			*emailOptionsNumPtr = 0;
+			*searchEngineNumPtr = 0;
+			*currentKeywordPtr = "";
+			*keywordListSearchEngineCounterPtr = 0;
+			*proxyServerCounterPtr = 0;
+			*workerCounterPtr = 0;
+
+			//fileList->clear();
+
+
 			break;
 		}
 
-
-		// This will stupidly wait 1 sec doing nothing...
-		QEventLoop loop;
-		QTimer::singleShot(*harvesterTimerPtr, &loop, SLOT(quit()));
-		loop.exec();
-
-		// send signal to grab parameter options
-		emit emitParameters();
-
-		// send signal to show Keywords that are currently Queue
-		emit emitKeywordQueue();
-
-
-		//if url query that we recieved is not empty
-		if (!urlQueryParam->isEmpty()) {
-
-			std::string url = urlQueryParam->toStdString();
-			//std::string userAgent = paramsPtr->at(1).toStdString();
-			std::string proxy = proxies->toStdString();
-
-
-			CurlEasy *curl = new CurlEasy;
-			curl->set(CURLOPT_URL, url.c_str());
-			if (!proxies->isEmpty()) {
-				curl->set(CURLOPT_PROXY, proxy.c_str());
-			}
-			if (proxies->isEmpty()) {
-				curl->set(CURLOPT_PROXY, NULL);
-			}
-			curl->set(CURLOPT_FOLLOWLOCATION, 1L); // Tells libcurl to follow HTTP 3xx redirects
-			curl->set(CURLOPT_SSL_VERIFYPEER, FALSE);
-			curl->perform();
-
-			curl->setWriteFunction([this](char *data, size_t size)->size_t {
-
-
-				//If response is not 200, obviously we wont get any emails,
-				// but were only going to parse emails, only
-				// so this means, we only get emails if::
-				//1 reponse code is 200
-
-				// qDebug() << "Data from google.com: " << QByteArray(data, static_cast<int>(size));
-				QByteArray response(data, static_cast<int>(size));
-				QString responseString = QString(response);
-
-				QString plainText = QTextDocumentFragment::fromHtml(responseString).toPlainText();
-				QString filteredNewLine = plainText.replace("\n", " ");
-				QRegularExpression re("[0-9a-zA-Z]+([0-9a-zA-Z]*[-._+])*[0-9a-zA-Z]+@[0-9a-zA-Z]+([-.][0-9a-zA-Z]+)*([0-9a-zA-Z]*[.])[a-zA-Z]{2,6}");
-				QRegularExpressionMatchIterator i = re.globalMatch(filteredNewLine);
-				//qDebug() << filteredNewLine;
-				QStringList words;
-				QStringList test;
-				QString word;
-				QRegularExpressionMatch match;
-				QList<QString> list;
-				QString emailList;
-				int num = 0;
-
-
-
-				while (i.hasNext()) {
-					QRegularExpressionMatch match = i.next();
-
-					if (!match.captured(0).isEmpty())
-						word = match.captured(0);
-					//words << word;
-					//MainWindow::emails = &words;
-					if (!word.isEmpty()) {
-						words << word;
-						// emailList = words.at(num);
-						list << words;
-						emit emitEmailList(words.at(num));
-
-						num++;
-
-					} // end words !empty
-
-				} // end while
-
-
-
-				return size;
-			});// end setWriteFunction
-
-			connect(curl, &CurlEasy::done, [curl, this](CURLcode result) {
-				long httpResponseCode = curl->get<long>(CURLINFO_RESPONSE_CODE);
-
-				QString effectiveUrl = curl->get<const char*>(CURLINFO_EFFECTIVE_URL);
-
-				/*********HTTP CODE*******/
-				// Log errors,or show message to user if response code is not 200
-				if (httpResponseCode == 200 && result == CURLE_OK) {
-
-					//qDebug() << "GOOD TO SCRAPE";
-					emit senderCurlResponseInfo("Request Succeded");
-					qDebug() << "HTTP  Code-->" << httpResponseCode;
-					qDebug() << "Result--->" << result;
-					qDebug() << "From CURL 0";
-
-				}
-
-
-
-				if (httpResponseCode == 503) {
-
-					// qDebug() << "503 ERROR CODE ";
-					emit senderCurlResponseInfo("503");
-
-
-				}
-
-				if (result != CURLE_OK) {
-
-					switch (result)
-					{
-					case 5: qDebug() << "Curl code-> " << result << " Message->" << curl->errbuf;
-						break;
-					case 7: qDebug() << "Curl code-> " << result << " Message->" << curl->errbuf;
-						break;
-					case 35: qDebug() << "Curl code-> " << result << " Message->" << curl->errbuf;
-						break;
-					case 56: qDebug() << "Curl code-> " << result << " Message->" << curl->errbuf;
-						break;
-
-
-					default: qDebug() << "Default Switch Statement Curl Code--> " << result;
-
-					}
-					/**************
-					*checks curl erros codes
-					*
-					* 5 -- Couldn't resolve proxy. The given proxy host could not be resolved.
-					* 7 -- Failed to connect() to host or proxy.
-					*
-					*********/
-					if (result == 5 || result == 7 || result == 35)
-					{
-						emit senderCurlResponseInfo("Proxy Error");
-					}
-
-				}
-
-			}); // end of lambda
-
-
-			connect(curl, SIGNAL(done(CURLcode)), curl, SLOT(deleteLater()));
-
-		} // end of urlQueryParam  if statement
-		else
+		// if workerCounter == *proxyRotateIntervalPtr, reset workerCounter ; if certain number of
+		// http request have been made rotate proxy
+		if (*workerCounterPtr <= proxyRotateInterval)
 		{
+			// only rotate each proxy if proxyCounterPtr is not greater than our proxyServer qlist
+			if ((*proxyServerCounterPtr) <= proxyServers->size())
+			{
+				// if proxy counter is not greater than proxyServer qlist, proxyCounter can increment
+				canProxyCounterIncrement = true;
+			}
 
-			qDebug() << "NOT SET";
+			// if proxy counter is equal to the size of proxyServer qlist, we cant increment
+			if ((*proxyServerCounterPtr) == proxyServers->size())
+			{
+				canProxyCounterIncrement = false;
+				// if proxyServerCounter is equal to the size of the proxyServer qlist, reset it to 0
+				*proxyServerCounterPtr = 0;
+			}
+
+
+			// if proxies contained in qlist empty in main thread, if so clear the proxylist in this thread also
+			if (isProxyEmpty == true && proxyServers->size() == 0)
+			{
+				//qDebug() << "Proxy Empty";
+				//qDebug() << *proxyServers;
+				//qDebug() <<proxyServers->size();
+				proxyServers->clear();
+				*proxies = "";
+			}
+
+			// if proxies contained in qlist are not empty, and we can keep incrementing,
+			// our proxies are good to use/rotate
+			if (isProxyEmpty == false && canProxyCounterIncrement == true)
+			{
+				*proxies = proxyServers->at(*proxyServerCounterPtr);
+				//qDebug() << "Counter-->" << *proxies;
+
+			}
+			//qDebug() << "Counter-->" << *proxyServerCounterPtr;
+			//qDebug() << "Proxies-->" << *proxies;
+
 		}
 
 
-		// Once we're done waiting, value is updated
-		emit valueChanged(QString::number(1));
-	}
+		// if workerCounter is greater than *proxyRotateIntervalPtr/ amount of http request before proxy rotates
+		if (*workerCounterPtr >= proxyRotateInterval)
+		{
+			// restart workerCounter
+			*workerCounterPtr = 0;
+			// increment proxyServerPtr to go through each proxyServer index every interval
+			(*proxyServerCounterPtr) += 1;
 
-	// Set _working to false, meaning the process can't be aborted anymore.
-	mutex.lock();
-	_working = false;
-	mutex.unlock();
+		}
 
-	qDebug() << " First Thread Worker process finished in Thread " << thread()->currentThreadId();
+		// increment workerCounter if we have not hit our http request limit to rotate each proxy
+		(*workerCounterPtr) += 1;
 
-	//Once 60 sec passed, the finished signal is sent
+
+		if (!proxyServers->isEmpty())
+		{
+
+			//qDebug() << *proxies;
+		}
+
+
+
+
+		if (!fileList->isEmpty())
+		{
+			// on load is 0 which is the first index value
+			*currentKeywordPtr = fileList->at(*fileListPtr);
+		}
+
+		(*keywordListNumPtrCounter) += 1;
+
+		/**********Search Engine Options ******/
+
+		// if pointer is equal to size of vector were done
+		if (*searchEngineNumPtr == vectorSearchEngineOptions.size())
+		{
+			*searchEngineNumPtr = 0; // done
+		}
+
+		// if vector search engine contains current search engine, assign it it to search eng var
+		if (vectorSearchEngineOptions.contains(vectorSearchEngineOptions.at(*searchEngineNumPtr)))
+		{
+			searchEngine = vectorSearchEngineOptions.at(*searchEngineNumPtr);
+		}
+
+		/********End Search Engine Options*****/
+
+
+
+		/*******Email Options******/
+
+		if (searchEngine == "http://google.com")
+		{
+
+			/*****Email Options******/
+
+			/******Social NetWork Options******/
+			if (*emailOptionsNumPtr == vectorEmailOptions.size()) {
+
+				*emailOptionsNumPtr = 0; // done
+			}
+
+
+
+			if (vectorEmailOptions.contains(vectorEmailOptions.at(*emailOptionsNumPtr)))
+			{
+				email = vectorEmailOptions.at(*emailOptionsNumPtr);
+			}
+
+
+
+			/******Social NetWork Options******/
+			if (*socialNetWorkNumPtr == vectorSocialNetworks2.size()) {
+
+				*socialNetWorkNumPtr = 0; // done
+			}
+
+
+			if (vectorSocialNetworks2.contains(vectorSocialNetworks2.at(*socialNetWorkNumPtr))) {
+				socialNetWork = vectorSocialNetworks2.at(*socialNetWorkNumPtr);
+			}
+
+			// search engines pagination number
+			(*keywordListSearchEngineCounterPtr) += 10;
+
+			/*****Cast num to string to put inside query string******/
+			castSearchQueryNumPtr = QString::number(*keywordListSearchEngineCounterPtr);
+
+
+			/**********
+			if search box is not empty assign search box value to currentKeywordSearchBoxKeyword
+			so incase keywordLoadListOptions is empty, we can allow it be appended to searchEngineParam
+			on its own.
+
+			--->>> If both keywordLoadListOptions, and searchbox keyword is NOT empty,
+			were going to add the search box keyword to the keywordLoadListOptions List
+			to be included for processing.
+
+			************/
+
+
+
+
+			if (!lineEdit_keywords_search_box.isEmpty() && fileList->isEmpty() || !lineEdit_keywords_search_box.isEmpty() && !fileList->isEmpty())
+			{
+
+				currentKeywordSearchBoxKeyword = fileList->at(0);
+				searchEngineParam = "https://www.google.com/search?q=" + socialNetWork + "%20"
+					+ email + "%20" + currentKeywordSearchBoxKeyword.replace(" ", "+") +
+					"&ei=yv8oW8TYCOaN5wKImJ2YBQ&start=" + castSearchQueryNumPtr + "&sa=N&biw=1366&bih=613";
+			}
+
+			if (!fileList->empty())
+			{
+
+				searchEngineParam = "https://www.google.com/search?q=" + socialNetWork + "%20"
+					+ email + "%20" + currentKeywordPtr->replace(" ", "+") +
+					"&ei=yv8oW8TYCOaN5wKImJ2YBQ&start=" + castSearchQueryNumPtr + "&sa=N&biw=1366&bih=613";
+			}
+
+
+
+			/****Continues email quene until its the last item in array***/
+
+			if (*keywordListSearchEngineCounterPtr == 100) {
+				if (*emailOptionsNumPtr == vectorEmailOptions.size() - 1) {
+
+					*emailOptionsNumPtr = 0;
+
+				}
+				else {
+					(*emailOptionsNumPtr) += 1;
+				}
+			}
+
+			/****Continues social network quene until its the last item in array***/
+
+			if (*keywordListSearchEngineCounterPtr == 100) {
+				if (*socialNetWorkNumPtr == vectorSocialNetworks2.size() - 1) {
+
+					*socialNetWorkNumPtr = 0;
+
+				}
+				else {
+					(*socialNetWorkNumPtr) += 1;
+				}
+			}
+
+
+
+
+
+			/*******
+			* If search engine pagination reaches 100
+			* Stops social network, email, ans search engine quene, and moves on to next search engine
+			******/
+
+			if (*keywordListSearchEngineCounterPtr == 100) {
+				*keywordListSearchEngineCounterPtr = 0;
+
+				// if social network pointer, and email options pointer is equal
+				//than the size of  socialNetworkOptions arrary,
+				//then were done, and move on
+				if (*socialNetWorkNumPtr == vectorSocialNetworks2.size() - 1)
+				{
+
+					/*******
+					if the last item in vector is true, and dosent match our current value
+					theres more elements after our current element, we need
+					this to make sure out pointer dosent get out of a range/QVector out of range.
+					*****/
+
+					if (!vectorSearchEngineOptions.last().isEmpty())
+					{
+						vectorSearchEngineOptionsLastItem = vectorSearchEngineOptions.last();
+						if (vectorSearchEngineOptionsLastItem != vectorSearchEngineOptions.at(*searchEngineNumPtr)) {
+							(*searchEngineNumPtr) += 1;
+						}
+					}
+				}// end of checking if search eng pagination has reached 100
+
+
+				if (*emailOptionsNumPtr == vectorEmailOptions.size())
+				{
+					*emailOptionsNumPtr = 0;
+				}
+
+
+
+			}
+
+
+			//            qDebug() << "Search Engine Vector -->" <<vectorSearchEngineOptions;
+			//            qDebug() << "Search Engine Vector Size -->" <<vectorSearchEngineOptions.size();
+			//            qDebug() << "Search Engine Vector Pointer -->" << *searchEngineNumPtr;
+
+
+			//            qDebug() << "Email Vector  -->" <<vectorEmailOptions;
+			//            qDebug() << "Email Vector Size -->" <<vectorEmailOptions.size();
+			//            qDebug() << "Email Vector Pointer -->" << *emailOptionsNumPtr;
+
+
+			//            qDebug() << "Social Vector -->" <<vectorSocialNetworks2;
+			//            qDebug() << "Social Vector Size -->" <<vectorSocialNetworks2.size();
+			//            qDebug() << "Social Vector Pointer -->" << *socialNetWorkNumPtr;
+
+			//qDebug() << searchEngineParam;
+			// qDebug()<<  searchEngine;
+			// qDebug()<<  vectorSearchEngineOptions;
+			// qDebug() << *keywordListSearchEngineCounterPtr;
+
+
+
+		}// end of checking if search engine is Google
+
+
+
+		 /************Bing*************/
+
+		if (searchEngine == "http://bing.com")
+		{
+
+			/*****Email Options******/
+
+			/******Social NetWork Options******/
+			if (*emailOptionsNumPtr == vectorEmailOptions.size()) {
+
+				*emailOptionsNumPtr = 0; // done
+			}
+
+
+
+			if (vectorEmailOptions.contains(vectorEmailOptions.at(*emailOptionsNumPtr)))
+			{
+				email = vectorEmailOptions.at(*emailOptionsNumPtr);
+			}
+
+
+
+			/******Social NetWork Options******/
+			if (*socialNetWorkNumPtr == vectorSocialNetworks2.size()) {
+
+				*socialNetWorkNumPtr = 0; // done
+			}
+
+
+			if (vectorSocialNetworks2.contains(vectorSocialNetworks2.at(*socialNetWorkNumPtr))) {
+				socialNetWork = vectorSocialNetworks2.at(*socialNetWorkNumPtr);
+			}
+
+			// search engines pagination number
+			(*keywordListSearchEngineCounterPtr) += 10;
+
+			/*****Cast num to string to put inside query string******/
+			castSearchQueryNumPtr = QString::number(*keywordListSearchEngineCounterPtr);
+
+
+			/**********
+			if search box is not empty assign search box value to currentKeywordSearchBoxKeyword
+			so incase keywordLoadListOptions is empty, we can allow it be appended to searchEngineParam
+			on its own.
+
+			--->>> If both keywordLoadListOptions, and searchbox keyword is NOT empty,
+			were going to add the search box keyword to the keywordLoadListOptions List
+			to be included for processing.
+
+			************/
+			if (!lineEdit_keywords_search_box.isEmpty() && fileList->isEmpty() || !lineEdit_keywords_search_box.isEmpty() && !fileList->isEmpty())
+			{
+
+				currentKeywordSearchBoxKeyword = fileList->at(0);
+				searchEngineParam = "https://www.bing.com/search?q=" +
+					socialNetWork + "%20"
+					+ email + "%20" + currentKeywordSearchBoxKeyword.replace(" ", "+") +
+					"&qs=n&sp=-1&pq=undefined&sc=0-45&sk=&cvid=6C577B0F2A1348BBB5AF38F9AC4CA13A&first="
+					+ castSearchQueryNumPtr + "&FORM=PERE";
+			}
+
+			if (!fileList->empty())
+			{
+
+				searchEngineParam = "https://www.bing.com/search?q=" +
+					socialNetWork + "%20"
+					+ email + "%20" + currentKeywordPtr->replace(" ", "+") +
+					"&qs=n&sp=-1&pq=undefined&sc=0-45&sk=&cvid=6C577B0F2A1348BBB5AF38F9AC4CA13A&first="
+					+ castSearchQueryNumPtr + "&FORM=PERE";
+			}
+
+
+
+
+			/****Continues email quene until its the last item in array***/
+
+			if (*keywordListSearchEngineCounterPtr == 100) {
+				if (*emailOptionsNumPtr == vectorEmailOptions.size() - 1) {
+
+					*emailOptionsNumPtr = 0;
+
+				}
+				else {
+					(*emailOptionsNumPtr) += 1;
+				}
+			}
+
+			/****Continues social network quene until its the last item in array***/
+
+			if (*keywordListSearchEngineCounterPtr == 100) {
+				if (*socialNetWorkNumPtr == vectorSocialNetworks2.size() - 1) {
+
+					*socialNetWorkNumPtr = 0;
+
+				}
+				else {
+					(*socialNetWorkNumPtr) += 1;
+				}
+			}
+
+
+
+
+
+			/*******
+			* If search engine pagination reaches 100
+			* Stops social network, email, ans search engine quene, and moves on to next search engine
+			******/
+
+			if (*keywordListSearchEngineCounterPtr == 100) {
+				*keywordListSearchEngineCounterPtr = 0;
+
+				// if social network pointer, and email options pointer is equal
+				//than the size of  socialNetworkOptions arrary,
+				//then were done, and move on
+				if (*socialNetWorkNumPtr == vectorSocialNetworks2.size() - 1)
+				{
+
+					/*******
+					if the last item in vector is true, and dosent match our current value
+					theres more elements after our current element, we need
+					this to make sure out pointer dosent get out of a range/QVector out of range.
+					*****/
+
+					if (!vectorSearchEngineOptions.last().isEmpty())
+					{
+						vectorSearchEngineOptionsLastItem = vectorSearchEngineOptions.last();
+						if (vectorSearchEngineOptionsLastItem != vectorSearchEngineOptions.at(*searchEngineNumPtr)) {
+							(*searchEngineNumPtr) += 1;
+						}
+					}
+				}// end of checking if search eng pagination has reached 100
+
+
+				if (*emailOptionsNumPtr == vectorEmailOptions.size())
+				{
+					*emailOptionsNumPtr = 0;
+				}
+
+
+
+			}
+
+
+			//            qDebug() << "Search Engine Vector -->" <<vectorSearchEngineOptions;
+			//            qDebug() << "Search Engine Vector Size -->" <<vectorSearchEngineOptions.size();
+			//            qDebug() << "Search Engine Vector Pointer -->" << *searchEngineNumPtr;
+
+
+			//            qDebug() << "Email Vector  -->" <<vectorEmailOptions;
+			//            qDebug() << "Email Vector Size -->" <<vectorEmailOptions.size();
+			//            qDebug() << "Email Vector Pointer -->" << *emailOptionsNumPtr;
+
+
+			//            qDebug() << "Social Vector -->" <<vectorSocialNetworks2;
+			//            qDebug() << "Social Vector Size -->" <<vectorSocialNetworks2.size();
+			//            qDebug() << "Social Vector Pointer -->" << *socialNetWorkNumPtr;
+
+			// qDebug() << searchEngineParam;
+			// qDebug()<<  searchEngine;
+			// qDebug()<<  vectorSearchEngineOptions;
+			// qDebug() << *keywordListSearchEngineCounterPtr;
+
+
+
+		}// end of checking if search engine is Bing
+
+
+
+
+		 /***************Yahoo***************/
+
+
+		if (searchEngine == "http://yahoo.com")
+		{
+
+			/*****Email Options******/
+
+			/******Social NetWork Options******/
+			if (*emailOptionsNumPtr == vectorEmailOptions.size()) {
+
+				*emailOptionsNumPtr = 0; // done
+			}
+
+
+
+			if (vectorEmailOptions.contains(vectorEmailOptions.at(*emailOptionsNumPtr)))
+			{
+				email = vectorEmailOptions.at(*emailOptionsNumPtr);
+			}
+
+
+
+			/******Social NetWork Options******/
+			if (*socialNetWorkNumPtr == vectorSocialNetworks2.size()) {
+
+				*socialNetWorkNumPtr = 0; // done
+			}
+
+
+			if (vectorSocialNetworks2.contains(vectorSocialNetworks2.at(*socialNetWorkNumPtr))) {
+				socialNetWork = vectorSocialNetworks2.at(*socialNetWorkNumPtr);
+			}
+
+			// search engines pagination number
+			(*keywordListSearchEngineCounterPtr) += 10;
+
+			/*****Cast num to string to put inside query string******/
+			castSearchQueryNumPtr = QString::number(*keywordListSearchEngineCounterPtr);
+
+
+			/**********
+			if search box is not empty assign search box value to currentKeywordSearchBoxKeyword
+			so incase keywordLoadListOptions is empty, we can allow it be appended to searchEngineParam
+			on its own.
+
+			--->>> If both keywordLoadListOptions, and searchbox keyword is NOT empty,
+			were going to add the search box keyword to the keywordLoadListOptions List
+			to be included for processing.
+
+			************/
+			if (!lineEdit_keywords_search_box.isEmpty() && fileList->isEmpty() || !lineEdit_keywords_search_box.isEmpty() && !fileList->isEmpty())
+			{
+
+				currentKeywordSearchBoxKeyword = fileList->at(0);
+				searchEngineParam = "https://search.yahoo.com/search;_ylt=A2KIbNDlJS1b7nIAYNNx.9w4;_ylu=X3oDMTFjN3E2bWhuBGNvbG8DYmYxBHBvcwMxBHZ0aWQDVUkyRkJUMl8xBHNlYwNwYWdpbmF0aW9u?p=" +
+					socialNetWork + "%20"
+					+ email + "%20" + currentKeywordSearchBoxKeyword.replace(" ", "+") +
+					"&ei=UTF-8&fr=yfp-hrmob&fr2=p%3Afp%2Cm%3Asb&_tsrc=yfp-hrmob&fp=1&b=11&pz=" + castSearchQueryNumPtr + "&xargs=0";
+
+			}
+
+			if (!fileList->empty())
+			{
+
+				searchEngineParam = "https://search.yahoo.com/search;_ylt=A2KIbNDlJS1b7nIAYNNx.9w4;_ylu=X3oDMTFjN3E2bWhuBGNvbG8DYmYxBHBvcwMxBHZ0aWQDVUkyRkJUMl8xBHNlYwNwYWdpbmF0aW9u?p=" +
+					socialNetWork + "%20"
+					+ email + "%20" + currentKeywordPtr->replace(" ", "+") +
+					"&ei=UTF-8&fr=yfp-hrmob&fr2=p%3Afp%2Cm%3Asb&_tsrc=yfp-hrmob&fp=1&b=11&pz=" + castSearchQueryNumPtr + "&xargs=0";
+
+			}
+
+
+
+
+			/****Continues email quene until its the last item in array***/
+
+			if (*keywordListSearchEngineCounterPtr == 100) {
+				if (*emailOptionsNumPtr == vectorEmailOptions.size() - 1) {
+
+					*emailOptionsNumPtr = 0;
+
+				}
+				else {
+					(*emailOptionsNumPtr) += 1;
+				}
+			}
+
+			/****Continues social network quene until its the last item in array***/
+
+			if (*keywordListSearchEngineCounterPtr == 100) {
+				if (*socialNetWorkNumPtr == vectorSocialNetworks2.size() - 1) {
+
+					*socialNetWorkNumPtr = 0;
+
+				}
+				else {
+					(*socialNetWorkNumPtr) += 1;
+				}
+			}
+
+
+
+
+
+			/*******
+			* If search engine pagination reaches 100
+			* Stops social network, email, ans search engine quene, and moves on to next search engine
+			******/
+
+			if (*keywordListSearchEngineCounterPtr == 100) {
+				*keywordListSearchEngineCounterPtr = 0;
+
+				// if social network pointer, and email options pointer is equal
+				//than the size of  socialNetworkOptions arrary,
+				//then were done, and move on
+				if (*socialNetWorkNumPtr == vectorSocialNetworks2.size() - 1)
+				{
+
+					/*******
+					if the last item in vector is true, and dosent match our current value
+					theres more elements after our current element, we need
+					this to make sure out pointer dosent get out of a range/QVector out of range.
+					*****/
+
+					if (!vectorSearchEngineOptions.last().isEmpty())
+					{
+						vectorSearchEngineOptionsLastItem = vectorSearchEngineOptions.last();
+						if (vectorSearchEngineOptionsLastItem != vectorSearchEngineOptions.at(*searchEngineNumPtr)) {
+							(*searchEngineNumPtr) += 1;
+						}
+					}
+				}// end of checking if search eng pagination has reached 100
+
+				if (*emailOptionsNumPtr == vectorEmailOptions.size())
+				{
+					*emailOptionsNumPtr = 0;
+				}
+			}
+
+
+			//            qDebug() << "Search Engine Vector -->" <<vectorSearchEngineOptions;
+			//            qDebug() << "Search Engine Vector Size -->" <<vectorSearchEngineOptions.size();
+			//            qDebug() << "Search Engine Vector Pointer -->" << *searchEngineNumPtr;
+
+
+			//            qDebug() << "Email Vector  -->" <<vectorEmailOptions;
+			//            qDebug() << "Email Vector Size -->" <<vectorEmailOptions.size();
+			//            qDebug() << "Email Vector Pointer -->" << *emailOptionsNumPtr;
+
+
+			//            qDebug() << "Social Vector -->" <<vectorSocialNetworks2;
+			//            qDebug() << "Social Vector Size -->" <<vectorSocialNetworks2.size();
+			//            qDebug() << "Social Vector Pointer -->" << *socialNetWorkNumPtr;
+
+			// qDebug() << searchEngineParam;
+			// qDebug()<<  searchEngine;
+			// qDebug()<<  vectorSearchEngineOptions;
+			// qDebug() << *keywordListSearchEngineCounterPtr;
+
+		}// end of checking if search engine is Yahoo
+
+		 /****if timer is less or equal to search results combox box***/
+		 // qDebug() << searchResultsPages;
+		 // qDebug() << *keywordListNumPtrCounter;
+
+		curlProcess(searchEngineParam, "Thread 1");
+
+		if (QString::number(*keywordListNumPtrCounter) == searchResultsPages)
+		{
+			if (!fileList->empty())
+			{
+				filterCurrentKeyword = *currentKeywordPtr;
+				filterCurrentKeyword = filterCurrentKeyword.replace("+", " ");
+
+
+				/***********
+				If we  have more elements in list, and if so move to the next item
+
+				-If current value dosent match the keyword
+				- If current value dosent match the last item
+				Then theres more elements in last
+				********/
+
+				// If Current value does not matches last item, theres more items
+				if (fileList->value(*fileListPtr) != fileList->last() && fileList->value(*fileListPtr) != fileList->last().isEmpty())
+				{
+					(*fileListPtr) += 1;
+					*keywordListNumPtrCounter = 0;
+
+				}
+
+				// Current value matches the last keyword
+				if (fileList->value(*fileListPtr) == fileList->last())
+				{
+					if (*fileListPtr > fileList->size()) {
+						*fileListPtr = 0;  // just in case the pointer goes beyond fileList size()
+					}
+					*keywordListNumPtrCounter = 0;
+					fileList->clear();
+					*fileListPtr = 0;
+					wStop = true;
+					emit emitSenderHarvestResults("Finised File List");
+				}
+
+			}// end of checking if fileList is empty
+
+			if (fileList->isEmpty() && !lineEdit_keywords_search_box.isEmpty())
+			{
+				*fileListPtr = 0;
+				emit emitSenderHarvestResults("Finished Keyword Box");
+				wStop = true;
+			}
+
+
+
+		}// end of checking searchResultsPages
+
+
+		QThread::currentThread()->msleep(appTimer);
+	}// end of for loop
+
+
+
 	emit finished();
 }
 
@@ -310,12 +959,11 @@ void Worker::getParam(QString url, QString userAgent, QList <QString> *proxyServ
 	}
 
 
-	//qDebug() << *httpRequestList << "\n";
 
 
-	// if workerCounter == incrementProxy, reset workerCounter ; if certain number of
+	// if workerCounter == *proxyRotateIntervalPtr, reset workerCounter ; if certain number of
 	// http request have been made rotate proxy
-	if (*workerCounterPtr <= incrementProxy)
+	if (*workerCounterPtr <= *proxyRotateIntervalPtr)
 	{
 		// only rotate each proxy if proxyCounterPtr is not greater than our proxyServer qlist
 		if ((*proxyServerCounterPtr) <= proxyServers->size())
@@ -357,8 +1005,8 @@ void Worker::getParam(QString url, QString userAgent, QList <QString> *proxyServ
 	}
 
 
-	// if workerCounter is greater than incrementProxy/ amount of http request before proxy rotates
-	if (*workerCounterPtr >= incrementProxy)
+	// if workerCounter is greater than *proxyRotateIntervalPtr/ amount of http request before proxy rotates
+	if (*workerCounterPtr >= *proxyRotateIntervalPtr)
 	{
 		// restart workerCounter
 		*workerCounterPtr = 0;
@@ -372,8 +1020,6 @@ void Worker::getParam(QString url, QString userAgent, QList <QString> *proxyServ
 
 
 
-
-
 }
 
 void Worker::getProxyFile(QString fileName)
@@ -383,38 +1029,38 @@ void Worker::getProxyFile(QString fileName)
 
 void Worker::receiverEmptyProxyServer(QString isEmpty)
 {
-	if (isEmpty == "Empty")
-	{
+	//    if (isEmpty == "Empty")
+	//    {
 
-		isProxyEmpty = true;
-	}
+	//        isProxyEmpty = true;
+	//    }
 
-	if (isEmpty == "Not Empty")
-	{
-		isProxyEmpty = false;
+	//    if (isEmpty == "Not Empty")
+	//    {
+	//        isProxyEmpty = false;
 
-	}
+	//    }
 }
 
 void Worker::receiverStopThreadCounters(QString stopThreadCounter)
 {
-	isStopStartThreadCounter = false;
-	*workerCounterPtr = 0;
-	*proxyServerCounterPtr = 0;
+	// isStopStartThreadCounter = false;
+	// *workerCounterPtr = 0;
+	// *proxyServerCounterPtr = 0;
 }
 
 void Worker::receiverStartThreadCounters(QString startThreadCounter)
 {
 
-	isStopStartThreadCounter = true;
-	*workerCounterPtr = 0;
-	*proxyServerCounterPtr = 0;
+	// isStopStartThreadCounter = true;
+	// *workerCounterPtr = 0;
+	// *proxyServerCounterPtr = 0;
 
 
 
 }
 
-void Worker::receiverHarvesterTimer(int harvesterTimer) {
+void Worker::receiverAppOptions(int harvesterTimer, int proxyRotateInterval) {
 
 	/*********
 	Chrono is namespace, meaning a certain class will on be in its scope
@@ -427,11 +1073,13 @@ void Worker::receiverHarvesterTimer(int harvesterTimer) {
 	// cast long long to int
 	*harvesterTimerPtr = static_cast<int>(ms.count());
 
+	*proxyRotateIntervalPtr = proxyRotateInterval;
+
 }
 
 
-void Worker::test(QString s) {
-	emit emitEmailList(s);
+void Worker::processedEmails(QString emails) {
+	emit emitEmailList(emails);
 	//qDebug() << s;
 }
 
@@ -468,8 +1116,8 @@ size_t Worker::curl_write(char *ptr, size_t size, size_t nmemb, void *stream)
 			// emailList = words.at(num);
 			list << words;
 			//emit emitEmailList(words.at(num));
-			//qDebug() << words.at(num);
-			static_cast<Worker*>(stream)->test(words.at(num));
+			qDebug() << words.at(num);
+			static_cast<Worker*>(stream)->processedEmails(words.at(num));
 			//qDebug() << num;
 			num++;
 
@@ -487,4 +1135,12 @@ size_t Worker::curl_write(char *ptr, size_t size, size_t nmemb, void *stream)
 	return size*nmemb;
 
 }
+
+
+
+
+
+
+
+
 

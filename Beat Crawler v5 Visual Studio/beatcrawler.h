@@ -18,6 +18,7 @@
 #include <QAbstractItemView>
 #include <QTableWidgetItem>
 #include "filereader.h"
+#include <QtConcurrent/QtConcurrent>
 
 
 
@@ -42,6 +43,7 @@ public:
 	void keywordListOptionProcess();
 	void setEmailTable();
 	QString toDebug(const QByteArray & line);
+	void receiverParameters();
 
 
 	private slots:
@@ -62,12 +64,12 @@ public:
 
 	void on_pushButton_Save_Emails_clicked();
 
-	
+
 
 	public slots:
 
 	void receiverEmailList(QString);
-	void receiverParameters();
+	//void receiverParameters();
 	void recieverProxyTableSelection(const QItemSelection &, const QItemSelection &);
 	void recieverKeywordsQueue();
 	void recieverCurlResponseInfo(QString info);
@@ -76,6 +78,7 @@ public:
 	void receiverFileReadKeywordList(QString fileName, QString data, int keywordSize);
 	void disableStartButtonLoadKeywordList();
 	void enableStartButtonLoadKeywordList();
+	void receiverDataTest(QString s);
 
 signals:
 	void postParam(QString, QString, QList <QString> *);
@@ -83,9 +86,11 @@ signals:
 	void emitsenderEmptyProxyServer(QString);
 	void emitsenderStopThreadCounters(QString);
 	void emitsenderStartThreadCounters(QString);
-	void emitSenderHarvesterTimer(int);
+	void emitSenderAppOptions(int, int);
 	void emitSenderReadFile(QString);
 	void senderStopFileReaderThread();
+	void on_stop();
+	void emitRemoveThreadFileList();
 
 private:
 	Ui::BeatCrawler *ui;
@@ -133,11 +138,12 @@ private:
 	// this is because were setting a qlist to qset to remove dups, then from a qset to qlist again
 	QList <QString> setEmailList;
 	QList <QString> *proxyServers;
-
-
+	QList<QVector <QString>>vectorSearchOptions;
+	QList<int>timerOptions;
 	QThread *thread;
 	QThread *thread1;
 	Worker * worker;
+	Worker threadWorker;
 
 	int emailOptionsNum;
 	int searchEngineNum;
@@ -175,7 +181,7 @@ private:
 	int *fileListPtr;
 	int fileListNum;
 	bool keywordCompleted;
-	
+
 
 };
 
