@@ -43,7 +43,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <QList>
 #include <chrono>
 #include <QFileInfo>
-
+#include <QtConcurrent/QtConcurrent>
 
 
 
@@ -77,12 +77,27 @@ public:
 
 	//	static void init(CURLM *cm, int i);
 	void processedEmails(QString emails);
+	void processedEmails2(QString emails);
 	static void requestParsedEmailList(QString);
-	static size_t curl_write(char *ptr, size_t size, size_t nmemb, void *stream);
-	void doWork(QList<QVector <QString>>vectorSearchOptions, QString lineEdit_keywords_search_box,
+	static size_t curl_write1(char *ptr, size_t size, size_t nmemb, void *stream);
+	static size_t curl_write2(char *ptr, size_t size, size_t nmemb, void *stream);
+	static size_t curl_write3(char *ptr, size_t size, size_t nmemb, void *stream);
+	static size_t curl_write4(char *ptr, size_t size, size_t nmemb, void *stream);
+	static size_t curl_write5(char *ptr, size_t size, size_t nmemb, void *stream);
+
+	void curlProcess1(QString url, QString threadName);
+	void curlProcess2(QString url, QString threadName);
+	void curlProcess3(QString url, QString threadName);
+	void curlProcess4(QString url, QString threadName);
+	void curlProcess5(QString url, QString threadName);
+
+	void curlParams(QList<QVector <QString>>vectorSearchOptions, QString lineEdit_keywords_search_box,
 		QList <QString> *proxyServers, QList<int>timerOptions, QString searchResultsPages);
+	void doWork1();
+
 	void receiverReadFile(QString fileName);
-	void curlProcess(QString url, QString threadName);
+	void test(QString name);
+	void parsedEmails();
 
 
 
@@ -154,8 +169,9 @@ private:
 	int *keywordListSearchEngineCounterPtr;
 	int keywordListSearchEngineCounterNum;
 	char errbuf[CURL_ERROR_SIZE];
-
-
+	QList<QString>curlHTTPRequestList;
+	int *curlHTTPRequestCounterPtr;
+	int curlHTTPRequestCounterNum;
 
 
 
@@ -179,11 +195,18 @@ signals:
 	void finished();
 
 	void emitParameters();
-	void emitEmailList(QString emails);
+	void emitEmailList1(QString emails);
+    void emitEmailList2(QString emails);
+	void emitEmailList3(QString emails);
+	void emitEmailList4(QString emails);
+	void emitEmailList5(QString emails);
+
+
 	void emitKeywordQueue();
 	void senderCurlResponseInfo(QString);
 	void emitDataTest(QString s);
 	void emitSenderHarvestResults(QString results);
+	void emitfinishReadingKeywordFile();
 
 
 	public slots:
@@ -208,6 +231,7 @@ signals:
 	void receiverAppOptions(int harvesterTimer, int proxyRotateInterval);
 	void stop();
 	void receiverRemoveThreadFileList();
+	void readEmailFile();
 
 
 

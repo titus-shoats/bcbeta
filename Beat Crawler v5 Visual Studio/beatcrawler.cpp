@@ -49,6 +49,7 @@ BeatCrawler::BeatCrawler(QWidget *parent) :
 	BeatCrawler::fetchWriteCallBackCurlData = &fetchWriteCallBackCurlDataString;
 
 	// The thread and the worker are created in the constructor so it is always safe to delete them.
+	timer = new QTimer();
 	thread = new QThread();
 	thread1 = new QThread();
 	worker = new Worker();
@@ -64,9 +65,22 @@ BeatCrawler::BeatCrawler(QWidget *parent) :
 	connect(this, &BeatCrawler::emitRemoveThreadFileList, &threadWorker, &Worker::receiverRemoveThreadFileList);
 
 	connect(this, &BeatCrawler::on_stop, &threadWorker, &Worker::stop);
-	connect(&threadWorker, &Worker::emitEmailList, this, &BeatCrawler::receiverEmailList);
-	// connect(this,&BeatCrawler::emitSenderReadFile,&threadWorker,&Worker::receiverReadFile);
+	connect(&threadWorker, &Worker::emitEmailList1, this, &BeatCrawler::receiverEmailList);
+	connect(&threadWorker, &Worker::emitEmailList2, this, &BeatCrawler::receiverEmailList);
+	connect(&threadWorker, &Worker::emitEmailList3, this, &BeatCrawler::receiverEmailList);
+	connect(&threadWorker, &Worker::emitEmailList4, this, &BeatCrawler::receiverEmailList);
+	connect(&threadWorker, &Worker::emitEmailList5, this, &BeatCrawler::receiverEmailList);
 
+
+	//connect(&threadWorker, &Worker::emitEmailList2, this, &BeatCrawler::receiverEmailList2);
+
+	connect(&threadWorker, &Worker::emitfinishReadingKeywordFile, this, &BeatCrawler::recieverFinishReadingKeywordFile);
+	
+	// connect(this,&BeatCrawler::emitSenderReadFile,&threadWorker,&Worker::receiverReadFile);
+	//connect(timer, SIGNAL(timeout()), this, SLOT(populateEmailTable()));
+	//timer->start(5000);
+	populateEmailTable();
+	
 
 	emailList = new QList <QString>();
 	proxyServers = new QList <QString>();
@@ -74,18 +88,23 @@ BeatCrawler::BeatCrawler(QWidget *parent) :
 	for (int i = 0; i < numOptions; i++) {
 		options[i] = new Options();
 	}
-
+	emailTableModel = new QStandardItemModel();
 	fileList = new QStringList();
 
 	// ui->lineEdit_keywords_search_box->installEventFilter(this);
 
+	/******
+	
 	QStringList emailTableHeaders;
 	emailTableHeaders << "Emails";
-	ui->tableWidget_Emails->setRowCount(40000);
+	ui->tableWidget_Emails->setRowCount(8);
 	ui->tableWidget_Emails->setColumnCount(1);
 	ui->tableWidget_Emails->setHorizontalHeaderLabels(emailTableHeaders);
 	ui->tableWidget_Emails->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
 	ui->tableWidget_Emails->resizeRowsToContents();
+	ui->tableWidget_Emails->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+	********/
+	
 
 	ui->tableWidget_Proxy->setSelectionBehavior(QAbstractItemView::SelectRows);
 
@@ -98,6 +117,30 @@ BeatCrawler::BeatCrawler(QWidget *parent) :
 	ui->tableWidget_Keywords_Queue->resizeRowsToContents();
 
 
+	QStringList emailTableModelHeaderLabels;
+	emailTableModelHeaderLabels << "Emails";
+	emailTableModel->setHorizontalHeaderLabels(emailTableModelHeaderLabels);
+	emailTableModel->setRowCount(8);
+	emailTableModel->setColumnCount(0);
+	ui->tableView_Emails->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+
+	for (int row = 0; row < 8; ++row) {
+		for (int column = 0; column < 1; ++column) {
+			QStandardItem *item = new QStandardItem(" ");
+			emailTableModel->setItem(row, column, item);
+
+				delete item;
+			
+		}
+	}
+
+	ui->tableView_Emails->setModel(emailTableModel);
+	ui->tableView_Emails->show();
+	ui->tableView_Emails->resizeRowsToContents();
+
+
+
+	
 
 	ui->pushButton_Start->setCheckable(true);
 	ui->checkBox_Bing->setChecked(true);
@@ -113,8 +156,6 @@ BeatCrawler::BeatCrawler(QWidget *parent) :
 	ui->checkBox_Yahoo->setChecked(true);
 	ui->radioButton_Android_Webkit->setChecked(true);
 
-	ui->pushButton_Next_Email_Pagination->hide();
-	ui->pushButton_Previous_Email_Pagination->hide();
 	ui->lineEdit_Keyword_List_File_Location->setEnabled(false);
 
 
@@ -156,7 +197,7 @@ BeatCrawler::BeatCrawler(QWidget *parent) :
 	keywordListNumPtrNum = 0;
 	keywordListNumPtrCounter = &keywordListNumPtrNum;
 
-	nextEmailPagination = 20;
+	nextEmailPagination = 0;
 	nextEmailPaginationPtr = &nextEmailPagination;
 
 	previousEmailPagination = 0;
@@ -169,14 +210,9 @@ BeatCrawler::BeatCrawler(QWidget *parent) :
 	fileListPtr = &fileListNum;
 
 
-	// put inside method
-	/*******
-	for (int j = 0; j < ui->tableWidget_Emails->rowCount(); j++)
-	{
-	ui->tableWidget_Emails->hideRow(j);
-	}
+	previousPagesNum = 0;
+	previousPagesPtr = &previousPagesNum;
 
-	*******/
 
 
 
@@ -193,12 +229,13 @@ BeatCrawler::~BeatCrawler()
 	delete options;
 	delete emailList;
 	delete proxyServers;
-	worker->abort();
 	thread->wait();
 	qDebug() << "Deleting thread and worker in Thread " << this->QObject::thread()->currentThreadId();
 	delete thread;
 	delete worker;
 	delete fileList;
+	delete timer;
+	delete emailTableModel;
 
 	//fileReader->abort();
 	//thread1->wait();
@@ -703,6 +740,24 @@ void BeatCrawler::on_pushButton_Load_Keyword_List_clicked()
 
 	/******************Revised*************/
 
+	for (int row = 0; row < fileList->size(); row++)
+	{
+
+
+		for (int col = 0; col < 2; col++)
+		{
+			if (col == 0) {
+				ui->tableWidget_Keywords_Queue->setItem(row, col, new QTableWidgetItem(""));
+
+			}
+
+			if (col == 1) {
+				ui->tableWidget_Keywords_Queue->setItem(row, col, new QTableWidgetItem(""));
+			}
+		}
+
+	}// end for loop
+
 
 	QString fileName = QFileDialog::getOpenFileName(this, "Open text file", "");
 	QFile file(fileName);
@@ -710,26 +765,34 @@ void BeatCrawler::on_pushButton_Load_Keyword_List_clicked()
 	QString fileExt = fi.completeSuffix();;
 	QString strings;
 	QString str;
+	QString fileLine;
+
+
 	if (fileExt == "txt") {
 
 		if (!file.open(QIODevice::ReadOnly)) {
 			//QMessageBox::warning(this,"...","error in opening keyword file");
 			return;
 		}
+
+		//data = file.read(file.size());
+		//fileLine.append(data);
+		//fileReadLines << fileLine.split(QRegExp("[\r\n]"), QString::SkipEmptyParts);
+		//ui->pushButton_Load_Keyword_List->setEnabled(false);
+		//ui->checkBox_Delete_Keywords->setEnabled(false);
+		fileList->clear();
 		QFuture<void> sendFileName = QtConcurrent::run(&this->threadWorker, &Worker::receiverReadFile, QString(file.fileName()));
-
-
 		QTextStream ts(&file);
 		while (!ts.atEnd()) {
 			QApplication::processEvents();
 			str = ts.readLine();
 			*fileList << str;
+
 		}
+
 
 		for (int row = 0; row < fileList->size(); row++)
 		{
-
-
 			for (int col = 0; col < 2; col++)
 			{
 				if (col == 0) {
@@ -745,7 +808,6 @@ void BeatCrawler::on_pushButton_Load_Keyword_List_clicked()
 		}// end for loop
 
 		ui->lineEdit_Keyword_List_File_Location->setText(file.fileName());
-
 	}
 	else // else user needs to select txt file
 	{
@@ -754,8 +816,17 @@ void BeatCrawler::on_pushButton_Load_Keyword_List_clicked()
 	}
 
 	file.close();
-
 }
+
+
+void BeatCrawler::recieverFinishReadingKeywordFile()
+{
+	//enables checkboxes when keyword file has finished loading within thread
+	//ui->pushButton_Load_Keyword_List->setEnabled(true);
+	//ui->checkBox_Delete_Keywords->setEnabled(true);
+	qDebug() << "Finished";
+}
+
 
 QString BeatCrawler::toDebug(const QByteArray & line) {
 
@@ -2051,9 +2122,16 @@ void BeatCrawler::receiverParameters()
 	timerOptions.insert(1, ui->spinBox_Proxy_Rotate_Interval->value());
 
 
-	QFuture<void> multithread = QtConcurrent::run(&this->threadWorker
-		, &Worker::doWork, vectorSearchOptions, ui->lineEdit_keywords_search_box->text(), proxyServers,
+	QFuture<void> multithread1 = QtConcurrent::run(&this->threadWorker
+		, &Worker::curlParams, vectorSearchOptions, ui->lineEdit_keywords_search_box->text(), proxyServers,
 		timerOptions, ui->comboBox_search_results_amount->currentText());
+
+	QFuture<void> multithread2 = QtConcurrent::run(&this->threadWorker
+		, &Worker::doWork1);
+
+
+
+
 
 
 	//qDebug() << *fileListPtr;
@@ -2148,42 +2226,73 @@ void BeatCrawler::receiverParameters()
 
 }
 
+void BeatCrawler::populateEmailTable() {
+	  
+}
 
 
-void BeatCrawler::receiverEmailList(QString list)
+void BeatCrawler::receiverEmailList2(QString list)
 
 
 {
 
-	//qDebug() << "FROM RECEIVER------------->" << list;
+	//qDebug() <<"List2" << list;
+}
+
+void BeatCrawler::receiverEmailList(QString list)
+{  
+
+
 	QString emailsToLowerCase;
-	// assign qlist from thread to emailList pointer
 	*emailList << list;
 
-	// convert qlis to qset to remove dups
-	QSet<QString> set = emailList->toSet();
-	// convert qset back to list
-	setEmailList = set.toList();
-	for (int i = 0; i < emailList->size(); i++)
-	{
-		//qDebug() << emailList->at(i);
+	if (*nextEmailPaginationPtr == 0) {
+
+		if (emailList->size() >= 8) {
+
+			for (int row = 0; row < 8; ++row) {
+				for (int column = 0; column < 1; ++column) {
+					QStandardItem *item = new QStandardItem(emailList->at(row));
+					emailTableModel->setItem(row, column, item);
+
+					if (row >= emailList->size()) {
+						delete item;
+					}
+				}
+				//ui->tableView_Emails->resizeRowsToContents();
+			}
+		}
+
+	}
+
+	
 
 
-		emailListItem = new QTableWidgetItem();
-		emailListItem->setFlags(emailListItem->flags() ^ Qt::ItemIsEditable);
-		emailsToLowerCase = emailList->at(i);
-		emailListItem->setText(emailsToLowerCase);
+				
+	
+	
+	//for (int i = 0; i < emailList->size(); i++)
+	//{
 
-		ui->tableWidget_Emails->setItem(i, 0, emailListItem);
-		ui->tableWidget_Emails->showRow(i);
+		//emailListItem = new QTableWidgetItem();
+		//emailListItem->setFlags(emailListItem->flags() ^ Qt::ItemIsEditable);
+		//emailListItem->setText(emailList->at(i));
+
+		
+		//ui->tableWidget_Emails->setItem(i, 0, emailListItem);
+		//ui->tableWidget_Emails->showRow(i);
 
 
 		// if i is equal to or greater than the set qlist, delete pointer because were done with it
-		if (i >= setEmailList.size())
+		
+		/*******
+		if (i >= emailList->size())
 		{
 
 			delete emailListItem;
 		}
+		*******/
+
 
 		// only show up to 20 at any given time
 		//             if(i <=  *nextEmailPaginationPtr || i >= *previousEmailPaginationPtr){
@@ -2195,20 +2304,20 @@ void BeatCrawler::receiverEmailList(QString list)
 		//             }
 
 
-		if (i <= *nextEmailPaginationPtr || i >= *previousEmailPaginationPtr)
-		{
+		//if (i <= *nextEmailPaginationPtr || i >= *previousEmailPaginationPtr)
+		//{
 			// qDebug() <<"emails -->" << setEmailList.at(i) ;
 			//ui->tableWidget_Emails->setRowCount(*nextEmailPaginationPtr);
 			// ui->tableWidget_Emails->setItem(i, 0, new QTableWidgetItem(setEmailList.at(i)));
 
 
-		}
+		//}
 
 
-	}// end of outer for loop
+	//}// end of outer for loop
 
-	for (int j = 0; j < ui->tableWidget_Emails->rowCount(); j++)
-	{
+	//for (int j = 0; j < ui->tableWidget_Emails->rowCount(); j++)
+	//{
 		//qDebug() << j;
 		//            if(ui->tableWidget_Emails->item(j,0)->text().isEmpty())
 		//            {
@@ -2218,14 +2327,14 @@ void BeatCrawler::receiverEmailList(QString list)
 		//                ui->tableWidget_Emails->showRow(j);
 		//            }
 
-	}
+	//}
 
 
 
 
 
 	// items found on bottom status bar
-	ui->label_Items_Found->setText("Items Found: " + QString::number(setEmailList.size()));
+	ui->label_Items_Found->setText("Items Found: " + QString::number(emailList->size()));
 
 	// ui->pushButton_Next_Email_Pagination->show();
 	//ui->pushButton_Previous_Email_Pagination->show();
@@ -2241,6 +2350,90 @@ void BeatCrawler::receiverEmailList(QString list)
 	//                }
 	//                //qDebug() << j;
 	//            }
+
+
+}
+
+void BeatCrawler::on_pushButton_Next_Email_Pagination_clicked()
+{
+	
+		emailTableModel->clear();
+
+		(*nextEmailPaginationPtr) += 8;
+		if (*nextEmailPaginationPtr >= 16)
+		{
+			(*previousEmailPaginationPtr) += 8;
+		}
+
+		for (int row = (*previousEmailPaginationPtr); row < (*nextEmailPaginationPtr); ++row)
+		{
+
+			for (int column = 0; column < 1; ++column) {
+				qDebug() << "ROW--" << row;
+				qDebug() << "PREV--" << (*previousEmailPaginationPtr);
+				qDebug() << "NEXT" << (*nextEmailPaginationPtr);
+				qDebug() << "EMAIL SIZET" << emailList->size();
+
+
+				/*******as long as the email list size is greater than the previousPages*****/
+
+				//|| (*nextEmailPaginationPtr) >= emailList->size()
+				if (row >= emailList->size()) {
+					ui->pushButton_Next_Email_Pagination->setEnabled(false);
+				}
+				else {
+					QStandardItem *item = new QStandardItem(emailList->at(row));
+					emailTableModel->setItem(row, column, item);
+
+					if (row >= emailList->size())
+					{
+						delete item;
+					}
+				}
+				
+			}
+		}
+
+
+		for (int i = 0; i<emailTableModel->rowCount(); i++)
+		{
+			if (emailTableModel->item(i) == NULL) {
+				// should we delete an null item like--> delete emailTableModel->item(i);
+				ui->tableView_Emails->hideRow(i);
+			}
+		}
+
+	
+
+	//ui->tableView_Emails->resizeColumnsToContents();
+	
+	
+
+	//qDebug() << "NEXT " << *nextEmailPaginationPtr;
+	//qDebug() << "PREVIOUS" << *previousEmailPaginationPtr;
+
+}
+
+void BeatCrawler::on_pushButton_Previous_Email_Pagination_clicked()
+{
+	/*********
+	if (*previousEmailPaginationPtr >= 20) {
+	(*previousEmailPaginationPtr) -= 20;
+	(*nextEmailPaginationPtr) -= 20;
+	}
+	*****/
+
+	if (*previousEmailPaginationPtr >= 8) {
+		(*previousEmailPaginationPtr) -= 8;
+		(*nextEmailPaginationPtr) -= 8;
+	}
+
+
+
+
+	qDebug() << "NEXT " << *nextEmailPaginationPtr;
+	qDebug() << "PREVIOUS" << *previousEmailPaginationPtr;
+
 
 
 }
@@ -2409,21 +2602,22 @@ void BeatCrawler::deleteKeyordsListTable() {
 			for (int col = 0; col < 2; col++)
 			{
 				ui->tableWidget_Keywords_Queue->setItem(row, col, new QTableWidgetItem(""));
-				//ui->tableWidget_Emails->hideRow(i);
 			}
 		}
 
 		//clear QStringList
 		fileList->clear();
 		emit emitRemoveThreadFileList();
+
 	}
 	ui->lineEdit_Keyword_List_File_Location->setText(" ");
 }
 
 void BeatCrawler::deleteEmailsListTable() {
 	// create empty table
-	//ui->tableWidget_Emails->resizeRowsToContents();
 
+	/**********
+	
 	if (setEmailList.size() >= 0)
 	{
 		for (int i = 0; i < setEmailList.size(); i++)
@@ -2438,6 +2632,9 @@ void BeatCrawler::deleteEmailsListTable() {
 		setEmailList.clear();
 	}
 
+	
+	
+	******/
 
 
 }
@@ -2603,7 +2800,7 @@ void BeatCrawler::on_checkBox_Delete_Keywords_clicked()
 
 	if (ui->checkBox_Delete_Keywords->isChecked())
 	{
-		QTimer::singleShot(5, this, SLOT(deleteKeyordsListTable()));
+		QTimer::singleShot(200, this, SLOT(deleteKeyordsListTable()));
 		ui->lineEdit_Keyword_List_File_Location->setText("");
 	}
 }
@@ -2614,7 +2811,7 @@ void BeatCrawler::on_checkBox_Delete_Emails_clicked()
 {
 	if (ui->checkBox_Delete_Emails->isChecked())
 	{
-		QTimer::singleShot(0, this, SLOT(deleteEmailsListTable()));
+		QTimer::singleShot(200, this, SLOT(deleteEmailsListTable()));
 		// emailList->clear();
 		// setEmailList.clear();
 		ui->label_Items_Found->setText("Items Found: ");
@@ -2626,29 +2823,6 @@ void BeatCrawler::on_checkBox_Delete_Emails_clicked()
 
 
 
-void BeatCrawler::on_pushButton_Next_Email_Pagination_clicked()
-{
-	(*nextEmailPaginationPtr) += 20;
-
-	if (*nextEmailPaginationPtr >= 40) {
-
-		(*previousEmailPaginationPtr) += 20;
-
-	}
-
-
-}
-
-void BeatCrawler::on_pushButton_Previous_Email_Pagination_clicked()
-{
-	if (*previousEmailPaginationPtr >= 20) {
-		(*previousEmailPaginationPtr) -= 20;
-		(*nextEmailPaginationPtr) -= 20;
-	}
-
-
-
-}
 
 
 void BeatCrawler::on_pushButton_Save_Emails_clicked()

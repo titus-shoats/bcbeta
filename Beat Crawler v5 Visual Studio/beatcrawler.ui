@@ -117,22 +117,12 @@
      </rect>
     </property>
     <property name="currentIndex">
-     <number>2</number>
+     <number>0</number>
     </property>
     <widget class="QWidget" name="tab_3">
      <attribute name="title">
       <string>Harvested Emails</string>
      </attribute>
-     <widget class="QTableWidget" name="tableWidget_Emails">
-      <property name="geometry">
-       <rect>
-        <x>10</x>
-        <y>10</y>
-        <width>591</width>
-        <height>201</height>
-       </rect>
-      </property>
-     </widget>
      <widget class="QPushButton" name="pushButton_Save_Emails">
       <property name="geometry">
        <rect>
@@ -185,6 +175,16 @@
        <string>Remove Emails</string>
       </property>
      </widget>
+     <widget class="QTableView" name="tableView_Emails">
+      <property name="geometry">
+       <rect>
+        <x>10</x>
+        <y>10</y>
+        <width>591</width>
+        <height>201</height>
+       </rect>
+      </property>
+     </widget>
     </widget>
     <widget class="QWidget" name="tab">
      <attribute name="title">
@@ -228,7 +228,7 @@
        </rect>
       </property>
       <property name="currentIndex">
-       <number>3</number>
+       <number>1</number>
       </property>
       <widget class="QWidget" name="tab_6">
        <attribute name="title">

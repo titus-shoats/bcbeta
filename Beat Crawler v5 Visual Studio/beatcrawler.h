@@ -44,9 +44,11 @@ public:
 	void setEmailTable();
 	QString toDebug(const QByteArray & line);
 	void receiverParameters();
+	void populateEmailTable();
 
 
-	private slots:
+
+private slots:
 
 
 	void on_pushButton_Start_clicked(bool checked);
@@ -79,6 +81,8 @@ public:
 	void disableStartButtonLoadKeywordList();
 	void enableStartButtonLoadKeywordList();
 	void receiverDataTest(QString s);
+	void recieverFinishReadingKeywordFile();
+	void receiverEmailList2(QString list);
 
 signals:
 	void postParam(QString, QString, QList <QString> *);
@@ -181,7 +185,9 @@ private:
 	int *fileListPtr;
 	int fileListNum;
 	bool keywordCompleted;
-
+	QStandardItemModel *emailTableModel;
+	int *previousPagesPtr;
+	int previousPagesNum;;
 
 };
 
