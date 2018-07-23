@@ -1,23 +1,7 @@
 ﻿
 /*
-Copyright 2013 Fabien Pierre-Nicolas.
-- Primarily authored by Fabien Pierre-Nicolas
+Copyright 2018 Titus Shoats
 
-This file is part of simple-qt-thread-example, a simple example to demonstrate how to use threads.
-This example is explained on http://fabienpn.wordpress.com/qt-thread-simple-and-stable-with-sources/
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-This progra is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "worker.h"
@@ -1404,18 +1388,39 @@ void Worker::doWork1()
 				
 				******/
 
-				curlProcess1(curlHTTPRequestList.at(0), "Instance 1");
-				curlProcess2(curlHTTPRequestList.at(1), "Instance 2");
-				curlProcess3(curlHTTPRequestList.at(2), "Instance 3");
-				curlProcess4(curlHTTPRequestList.at(3), "Instance 4");
-				curlProcess5(curlHTTPRequestList.at(4), "Instance 5");
+
+				if (!curlHTTPRequestList.value(0).isEmpty())
+				{
+					curlProcess1(curlHTTPRequestList.value(0), "Instance 1");
+
+				}
+				if (!curlHTTPRequestList.value(1).isEmpty())
+				{
+					curlProcess1(curlHTTPRequestList.value(1), "Instance 2");
+
+				}
+				if (!curlHTTPRequestList.value(2).isEmpty())
+				{
+					curlProcess1(curlHTTPRequestList.value(2), "Instance 3");
+
+				}
+				if (!curlHTTPRequestList.value(3).isEmpty())
+				{
+					curlProcess1(curlHTTPRequestList.value(3), "Instance 4");
+
+				}
+				if (!curlHTTPRequestList.value(4).isEmpty())
+				{
+					curlProcess1(curlHTTPRequestList.value(4), "Instance 5");
+
+				}
 				curlHTTPRequestList.clear();
 				
-				//qDebug() << curlHTTPRequest.at(0);
-				//qDebug() << curlHTTPRequest.at(1);
-				//qDebug() << curlHTTPRequest.at(2);
-				//qDebug() << curlHTTPRequest.at(3);
-				//qDebug() << curlHTTPRequest.at(4);
+				//qDebug() << curlHTTPRequest.value(0);
+				//qDebug() << curlHTTPRequest.value(1);
+				//qDebug() << curlHTTPRequest.value(2);
+				//qDebug() << curlHTTPRequest.value(3);
+				//qDebug() << curlHTTPRequest.value(4);
 
 				
 			}

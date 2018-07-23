@@ -2356,53 +2356,74 @@ void BeatCrawler::receiverEmailList(QString list)
 
 void BeatCrawler::on_pushButton_Next_Email_Pagination_clicked()
 {
-	
-		emailTableModel->clear();
+	/**********
 
-		(*nextEmailPaginationPtr) += 8;
-		if (*nextEmailPaginationPtr >= 16)
-		{
-			(*previousEmailPaginationPtr) += 8;
-		}
+	(*nextEmailPaginationPtr) += 20;
 
-		for (int row = (*previousEmailPaginationPtr); row < (*nextEmailPaginationPtr); ++row)
-		{
+	if (*nextEmailPaginationPtr >= 40) {
 
-			for (int column = 0; column < 1; ++column) {
-				qDebug() << "ROW--" << row;
-				qDebug() << "PREV--" << (*previousEmailPaginationPtr);
-				qDebug() << "NEXT" << (*nextEmailPaginationPtr);
-				qDebug() << "EMAIL SIZET" << emailList->size();
+	(*previousEmailPaginationPtr) += 20;
 
+	}
 
-				/*******as long as the email list size is greater than the previousPages*****/
+	******/
 
-				//|| (*nextEmailPaginationPtr) >= emailList->size()
-				if (row >= emailList->size()) {
-					ui->pushButton_Next_Email_Pagination->setEnabled(false);
-				}
-				else {
-					QStandardItem *item = new QStandardItem(emailList->at(row));
-					emailTableModel->setItem(row, column, item);
+	    if (!emailList->isEmpty()) {
+			emailTableModel->clear();
 
-					if (row >= emailList->size())
-					{
-						delete item;
+			(*nextEmailPaginationPtr) += 8;
+			if (*nextEmailPaginationPtr >= 16)
+			{
+				(*previousEmailPaginationPtr) += 8;
+			}
+
+			for (int row = (*previousEmailPaginationPtr); row < (*nextEmailPaginationPtr); ++row)
+			{
+
+				for (int column = 0; column < 1; ++column) {
+					qDebug() << "ROW--" << row;
+					qDebug() << "PREV--" << (*previousEmailPaginationPtr);
+					qDebug() << "NEXT" << (*nextEmailPaginationPtr);
+					qDebug() << "EMAIL SIZET" << emailList->size();
+
+					if (row <= emailList->size()) {
 					}
+					else {
+						//ui->pushButton_Previous_Email_Pagination->setEnabled(true);
+
+					}
+
+					/*******as long as the email list size is greater than the previousPages*****/
+
+					//|| (*nextEmailPaginationPtr) >= emailList->size()
+					if (row >= emailList->size()) {
+						ui->pushButton_Next_Email_Pagination->setEnabled(false);
+
+					}
+					else {
+
+						QStandardItem *item = new QStandardItem(emailList->at(row));
+						emailTableModel->setItem(row, column, item);
+
+						if (row >= emailList->size())
+						{
+							delete item;
+						}
+					}
+
 				}
-				
 			}
-		}
 
 
-		for (int i = 0; i<emailTableModel->rowCount(); i++)
-		{
-			if (emailTableModel->item(i) == NULL) {
-				// should we delete an null item like--> delete emailTableModel->item(i);
-				ui->tableView_Emails->hideRow(i);
+			for (int i = 0; i<emailTableModel->rowCount(); i++)
+			{
+				if (emailTableModel->item(i) == NULL) {
+					// should we delete an null item like--> delete emailTableModel->item(i);
+					ui->tableView_Emails->hideRow(i);
+				}
 			}
-		}
 
+		}
 	
 
 	//ui->tableView_Emails->resizeColumnsToContents();
@@ -2416,25 +2437,59 @@ void BeatCrawler::on_pushButton_Next_Email_Pagination_clicked()
 
 void BeatCrawler::on_pushButton_Previous_Email_Pagination_clicked()
 {
-	/*********
-	if (*previousEmailPaginationPtr >= 20) {
-	(*previousEmailPaginationPtr) -= 20;
-	(*nextEmailPaginationPtr) -= 20;
+	if (!emailList->isEmpty()) {
+		emailTableModel->clear();
+		if (*previousEmailPaginationPtr >= 8) {
+			(*previousEmailPaginationPtr) -= 8;
+			(*nextEmailPaginationPtr) -= 8;
+		}
+
+		for (int row = (*previousEmailPaginationPtr); row < (*nextEmailPaginationPtr); ++row)
+		{
+
+			for (int column = 0; column < 1; ++column) {
+				qDebug() << "ROW--" << row;
+				qDebug() << "PREV--" << (*previousEmailPaginationPtr);
+				qDebug() << "NEXT" << (*nextEmailPaginationPtr);
+				qDebug() << "EMAIL SIZET" << emailList->size();
+
+				if (row >= emailList->size()) {
+
+				}
+				else {
+					ui->pushButton_Next_Email_Pagination->setEnabled(true);
+				}
+
+				/*******as long as the email list size is greater than the previousPages*****/
+				if (row >= 0) {
+					//ui->pushButton_Previous_Email_Pagination->setEnabled(false);
+					QStandardItem *item = new QStandardItem(emailList->at(row));
+					emailTableModel->setItem(row, column, item);
+
+					if (row >= emailList->size())
+					{
+						delete item;
+					}
+				}
+				
+
+			}
+		}
+
+
+		for (int i = 0; i<emailTableModel->rowCount(); i++)
+		{
+			if (emailTableModel->item(i) == NULL) {
+				// should we delete an null item like--> delete emailTableModel->item(i);
+				ui->tableView_Emails->hideRow(i);
+			}
+		}
+
+
+
+
+
 	}
-	*****/
-
-	if (*previousEmailPaginationPtr >= 8) {
-		(*previousEmailPaginationPtr) -= 8;
-		(*nextEmailPaginationPtr) -= 8;
-	}
-
-
-
-
-	qDebug() << "NEXT " << *nextEmailPaginationPtr;
-	qDebug() << "PREVIOUS" << *previousEmailPaginationPtr;
-
-
 
 }
 
