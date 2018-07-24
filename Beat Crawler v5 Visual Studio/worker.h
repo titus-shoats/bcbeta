@@ -85,7 +85,7 @@ public:
 	static size_t curl_write4(char *ptr, size_t size, size_t nmemb, void *stream);
 	static size_t curl_write5(char *ptr, size_t size, size_t nmemb, void *stream);
 
-	void curlProcess1(QString url, QString threadName);
+	void curlProcess1(const char *urls[], QString threadName);
 	void curlProcess2(QString url, QString threadName);
 	void curlProcess3(QString url, QString threadName);
 	void curlProcess4(QString url, QString threadName);
@@ -116,10 +116,6 @@ private:
 	* @brief Protects access to #_abort
 	*/
 	QMutex mutex;
-	QList <QString> *paramsPtr;
-	QString params;
-	QString *urlQueryParam;
-	QString *userAgentParam;
 	QString *proxies;
 	int *workerCounterPtr;
 	int workerCounterNum;
@@ -172,6 +168,7 @@ private:
 	QList<QString>curlHTTPRequestList;
 	int *curlHTTPRequestCounterPtr;
 	int curlHTTPRequestCounterNum;
+	QTimer *deleteKeywordCheckBoxTimer;
 
 
 
@@ -196,20 +193,17 @@ signals:
 
 	void emitParameters();
 	void emitEmailList1(QString emails);
-    void emitEmailList2(QString emails);
-	void emitEmailList3(QString emails);
-	void emitEmailList4(QString emails);
-	void emitEmailList5(QString emails);
-
 
 	void emitKeywordQueue();
 	void senderCurlResponseInfo(QString);
 	void emitDataTest(QString s);
 	void emitSenderHarvestResults(QString results);
 	void emitfinishReadingKeywordFile();
+	void emitsenderEnableDeleteKeywordCheckBox();
+	void emitsenderEnableDeleteEmailCheckBox();
 
 
-	public slots:
+public slots:
 	/**
 	* @brief Does something
 	*
@@ -219,7 +213,6 @@ signals:
 	//void doWork();
 	//void doneWithParameters(QString * doneParam );
 	//void receiverDoneWithParameters(QString * receiverParam);
-	void getParam(QString url, QString userAgent, QList <QString> *proxyServers);
 
 	void getProxyFile(QString fileName);
 
@@ -232,7 +225,8 @@ signals:
 	void stop();
 	void receiverRemoveThreadFileList();
 	void readEmailFile();
-
+	void receiverRemoveThreadEmailList();
+	//void deleteKeywordCheckBox();
 
 
 };

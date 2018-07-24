@@ -12,18 +12,13 @@ Copyright 2018 Titus Shoats
 
 std::string buffer;
 QStringList parsedEmailList1;
-QStringList parsedEmailList2;
-QStringList parsedEmailList3;
-QStringList parsedEmailList4;
-QStringList parsedEmailList5;
+#define MAX_WAIT_MSECS 30*1000 /* Wait max. 30 seconds */
+#define CNT 4
 
 Worker::Worker(QObject *parent) :
 	QObject(parent)
 {
 
-	params = "";
-	paramsPtr = new QList <QString>();
-	urlQueryParam = new QString();
 	proxies = new QString();
 	workerCounterNum = 0;
 	workerCounterPtr = reinterpret_cast<int *>(&workerCounterNum);
@@ -62,20 +57,19 @@ Worker::Worker(QObject *parent) :
 	keywordListSearchEngineCounterNum = 0;
 	keywordListSearchEngineCounterPtr = &keywordListSearchEngineCounterNum;
 	errbuf[0] = 0;
-
-
+	deleteKeywordCheckBoxTimer = new QTimer();
+	//connect(deleteKeywordCheckBoxTimer, SIGNAL(timeout), this, SLOT(deleteKeywordCheckBox()));
 
 
 }
 
 Worker::~Worker()
 {
-	delete paramsPtr;
-	delete urlQueryParam;
 	delete proxies;
 	delete httpRequestList;
 	delete fileList;
 	delete proxyServers;
+	delete deleteKeywordCheckBoxTimer;
 	
 	
 	
@@ -93,10 +87,34 @@ void Worker::stop()
 	wStop = true;
 }
 
+
+void Worker::receiverRemoveThreadEmailList()
+{
+	parsedEmailList1.clear();
+	for (;;) {
+		QEventLoop loop;
+		QTimer::singleShot(5000, &loop, SLOT(quit()));
+		loop.exec();
+		if (parsedEmailList1.isEmpty()) {
+			emit emitsenderEnableDeleteEmailCheckBox();
+			break;
+		}
+	}
+}
+
+
 void Worker::receiverRemoveThreadFileList()
 {
 	fileList->clear();
-
+	for (;;) {
+		QEventLoop loop;
+		QTimer::singleShot(5000, &loop, SLOT(quit()));
+		loop.exec();
+		if (fileList->isEmpty()) {
+			emit emitsenderEnableDeleteKeywordCheckBox();
+			break;
+		}
+	}	
 }
 
 void Worker::receiverReadFile(QString fileName)
@@ -124,434 +142,12 @@ void Worker::receiverReadFile(QString fileName)
 	}
 	file.close();
 	// send signal to enable checkboxes  and keyword file load button
-
 	//QThread::currentThread()->msleep(2000);
-	//emit emitfinishReadingKeywordFile();
+	emit emitfinishReadingKeywordFile();
 
 }
 
 
-
-void Worker::curlProcess1(QString url, QString threadName)
-{
-	CURL *curl;
-	CURLcode res;
-	curl = curl_easy_init();
-	if (curl)
-	{
-		std::string urlString = url.toStdString();
-		curl_easy_setopt(curl, CURLOPT_URL, urlString.c_str());
-
-		/* google.com is redirected, so we tell LibCurl to follow redirection */
-		curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-		curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, FALSE);
-		curl_easy_setopt(curl, CURLOPT_USERAGENT, "Mozilla/5.0 (Linux; U; Android 4.0.3; ko-kr; LG-L160L Build/IML74K) AppleWebkit/534.30 (KHTML, like Gecko) Version/4.0 Mobile Safari/534.30");
-		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_write1);
-		curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errbuf);
-
-		curl_easy_setopt(curl, CURLOPT_WRITEDATA, this);
-		/* Perform the request, res will get the return code */
-		res = curl_easy_perform(curl);
-		/* Check for errors */
-		if (res != CURLE_OK)
-			fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
-		long httpResponseCode;
-		char* effectiveURL;
-		curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &httpResponseCode);
-		curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL, &effectiveURL);
-
-		/*********HTTP CODE*******/
-		// Log errors,or show message to user if response code is not 200
-		if (httpResponseCode == 200 && res == CURLE_OK) {
-
-			// emit senderCurlResponseInfo("Request Succeded");
-			qDebug() << "HTTP  Code--> " << httpResponseCode << " " << threadName
-				<< " - URL-> " << effectiveURL << "\n";
-		}
-
-		if (httpResponseCode == 503) {
-
-			qDebug() << "503 ERROR CODE " << threadName << "URL-> " << effectiveURL;
-			//  emit senderCurlResponseInfo("503");
-		}
-
-		if (res != CURLE_OK) {
-
-			switch (res)
-			{
-			case 5: qDebug() << threadName << " Curl code-> " << res << " Message->" << errbuf
-				<< "URL-> " << effectiveURL;
-				break;
-			case 7: qDebug() << threadName << " Curl code-> " << res << " Message->" << errbuf
-				<< "URL-> " << effectiveURL;;
-				break;
-			case 35: qDebug() << threadName << " Curl code-> " << res << " Message->" << errbuf
-				<< "URL-> " << effectiveURL;;
-				break;
-			case 56: qDebug() << threadName << " Curl code-> " << res << " Message->" << errbuf
-				<< "URL-> " << effectiveURL;;
-				break;
-
-
-			default: qDebug() << threadName << " Default Switch Statement Curl Code--> " << res
-				<< "URL-> " << effectiveURL;;
-
-			}
-			/**************
-			*checks curl erros codes
-			*
-			* 5 -- Couldn't resolve proxy. The given proxy host could not be resolved.
-			* 7 -- Failed to connect() to host or proxy.
-			*
-			*********/
-			if (res == 5 || res == 7 || res == 35)
-			{
-				// emit senderCurlResponseInfo("Proxy Error");
-				qDebug() << "Proxy Error" << "URL-> " << effectiveURL << " " << threadName;
-			}
-		}
-
-		/* Always cleanup */
-		curl_easy_cleanup(curl);
-	}
-}
-
-void Worker::curlProcess2(QString url, QString threadName)
-{
-	CURL *curl;
-	CURLcode res;
-	curl = curl_easy_init();
-	if (curl)
-	{
-		std::string urlString = url.toStdString();
-		curl_easy_setopt(curl, CURLOPT_URL, urlString.c_str());
-
-		/* google.com is redirected, so we tell LibCurl to follow redirection */
-		curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-		curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, FALSE);
-		curl_easy_setopt(curl, CURLOPT_USERAGENT, "Mozilla/5.0 (Linux; U; Android 4.0.3; ko-kr; LG-L160L Build/IML74K) AppleWebkit/534.30 (KHTML, like Gecko) Version/4.0 Mobile Safari/534.30");
-		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_write2);
-		curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errbuf);
-
-		curl_easy_setopt(curl, CURLOPT_WRITEDATA, this);
-		/* Perform the request, res will get the return code */
-		res = curl_easy_perform(curl);
-		/* Check for errors */
-		if (res != CURLE_OK)
-			fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
-		long httpResponseCode;
-		char* effectiveURL;
-		curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &httpResponseCode);
-		curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL, &effectiveURL);
-
-		/*********HTTP CODE*******/
-		// Log errors,or show message to user if response code is not 200
-		if (httpResponseCode == 200 && res == CURLE_OK) {
-
-			// emit senderCurlResponseInfo("Request Succeded");
-			qDebug() << "HTTP  Code--> " << httpResponseCode << " " << threadName
-				<< " - URL-> " << effectiveURL << "\n";
-		}
-
-		if (httpResponseCode == 503) {
-
-			qDebug() << "503 ERROR CODE " << threadName << "URL-> " << effectiveURL;
-			//  emit senderCurlResponseInfo("503");
-		}
-
-		if (res != CURLE_OK) {
-
-			switch (res)
-			{
-			case 5: qDebug() << threadName << " Curl code-> " << res << " Message->" << errbuf
-				<< "URL-> " << effectiveURL;
-				break;
-			case 7: qDebug() << threadName << " Curl code-> " << res << " Message->" << errbuf
-				<< "URL-> " << effectiveURL;;
-				break;
-			case 35: qDebug() << threadName << " Curl code-> " << res << " Message->" << errbuf
-				<< "URL-> " << effectiveURL;;
-				break;
-			case 56: qDebug() << threadName << " Curl code-> " << res << " Message->" << errbuf
-				<< "URL-> " << effectiveURL;;
-				break;
-
-
-			default: qDebug() << threadName << " Default Switch Statement Curl Code--> " << res
-				<< "URL-> " << effectiveURL;;
-
-			}
-			/**************
-			*checks curl erros codes
-			*
-			* 5 -- Couldn't resolve proxy. The given proxy host could not be resolved.
-			* 7 -- Failed to connect() to host or proxy.
-			*
-			*********/
-			if (res == 5 || res == 7 || res == 35)
-			{
-				// emit senderCurlResponseInfo("Proxy Error");
-				qDebug() << "Proxy Error" << "URL-> " << effectiveURL << " " << threadName;
-			}
-		}
-
-		/* Always cleanup */
-		curl_easy_cleanup(curl);
-	}
-}
-
-void Worker::curlProcess3(QString url, QString threadName)
-{
-	CURL *curl;
-	CURLcode res;
-	curl = curl_easy_init();
-	if (curl)
-	{
-		std::string urlString = url.toStdString();
-		curl_easy_setopt(curl, CURLOPT_URL, urlString.c_str());
-
-		/* google.com is redirected, so we tell LibCurl to follow redirection */
-		curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-		curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, FALSE);
-		curl_easy_setopt(curl, CURLOPT_USERAGENT, "Mozilla/5.0 (Linux; U; Android 4.0.3; ko-kr; LG-L160L Build/IML74K) AppleWebkit/534.30 (KHTML, like Gecko) Version/4.0 Mobile Safari/534.30");
-		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_write3);
-		curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errbuf);
-
-		curl_easy_setopt(curl, CURLOPT_WRITEDATA, this);
-		/* Perform the request, res will get the return code */
-		res = curl_easy_perform(curl);
-		/* Check for errors */
-		if (res != CURLE_OK)
-			fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
-		long httpResponseCode;
-		char* effectiveURL;
-		curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &httpResponseCode);
-		curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL, &effectiveURL);
-
-		/*********HTTP CODE*******/
-		// Log errors,or show message to user if response code is not 200
-		if (httpResponseCode == 200 && res == CURLE_OK) {
-
-			// emit senderCurlResponseInfo("Request Succeded");
-			qDebug() << "HTTP  Code--> " << httpResponseCode << " " << threadName
-				<< " - URL-> " << effectiveURL << "\n";
-		}
-
-		if (httpResponseCode == 503) {
-
-			qDebug() << "503 ERROR CODE " << threadName << "URL-> " << effectiveURL;
-			//  emit senderCurlResponseInfo("503");
-		}
-
-		if (res != CURLE_OK) {
-
-			switch (res)
-			{
-			case 5: qDebug() << threadName << " Curl code-> " << res << " Message->" << errbuf
-				<< "URL-> " << effectiveURL;
-				break;
-			case 7: qDebug() << threadName << " Curl code-> " << res << " Message->" << errbuf
-				<< "URL-> " << effectiveURL;;
-				break;
-			case 35: qDebug() << threadName << " Curl code-> " << res << " Message->" << errbuf
-				<< "URL-> " << effectiveURL;;
-				break;
-			case 56: qDebug() << threadName << " Curl code-> " << res << " Message->" << errbuf
-				<< "URL-> " << effectiveURL;;
-				break;
-
-
-			default: qDebug() << threadName << " Default Switch Statement Curl Code--> " << res
-				<< "URL-> " << effectiveURL;;
-
-			}
-			/**************
-			*checks curl erros codes
-			*
-			* 5 -- Couldn't resolve proxy. The given proxy host could not be resolved.
-			* 7 -- Failed to connect() to host or proxy.
-			*
-			*********/
-			if (res == 5 || res == 7 || res == 35)
-			{
-				// emit senderCurlResponseInfo("Proxy Error");
-				qDebug() << "Proxy Error" << "URL-> " << effectiveURL << " " << threadName;
-			}
-		}
-
-		/* Always cleanup */
-		curl_easy_cleanup(curl);
-	}
-}
-
-void Worker::curlProcess4(QString url, QString threadName)
-{
-	CURL *curl;
-	CURLcode res;
-	curl = curl_easy_init();
-	if (curl)
-	{
-		std::string urlString = url.toStdString();
-		curl_easy_setopt(curl, CURLOPT_URL, urlString.c_str());
-
-		/* google.com is redirected, so we tell LibCurl to follow redirection */
-		curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-		curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, FALSE);
-		curl_easy_setopt(curl, CURLOPT_USERAGENT, "Mozilla/5.0 (Linux; U; Android 4.0.3; ko-kr; LG-L160L Build/IML74K) AppleWebkit/534.30 (KHTML, like Gecko) Version/4.0 Mobile Safari/534.30");
-		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_write4);
-		curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errbuf);
-
-		curl_easy_setopt(curl, CURLOPT_WRITEDATA, this);
-		/* Perform the request, res will get the return code */
-		res = curl_easy_perform(curl);
-		/* Check for errors */
-		if (res != CURLE_OK)
-			fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
-		long httpResponseCode;
-		char* effectiveURL;
-		curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &httpResponseCode);
-		curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL, &effectiveURL);
-
-		/*********HTTP CODE*******/
-		// Log errors,or show message to user if response code is not 200
-		if (httpResponseCode == 200 && res == CURLE_OK) {
-
-			// emit senderCurlResponseInfo("Request Succeded");
-			qDebug() << "HTTP  Code--> " << httpResponseCode << " " << threadName
-				<< " - URL-> " << effectiveURL << "\n";
-		}
-
-		if (httpResponseCode == 503) {
-
-			qDebug() << "503 ERROR CODE " << threadName << "URL-> " << effectiveURL;
-			//  emit senderCurlResponseInfo("503");
-		}
-
-		if (res != CURLE_OK) {
-
-			switch (res)
-			{
-			case 5: qDebug() << threadName << " Curl code-> " << res << " Message->" << errbuf
-				<< "URL-> " << effectiveURL;
-				break;
-			case 7: qDebug() << threadName << " Curl code-> " << res << " Message->" << errbuf
-				<< "URL-> " << effectiveURL;;
-				break;
-			case 35: qDebug() << threadName << " Curl code-> " << res << " Message->" << errbuf
-				<< "URL-> " << effectiveURL;;
-				break;
-			case 56: qDebug() << threadName << " Curl code-> " << res << " Message->" << errbuf
-				<< "URL-> " << effectiveURL;;
-				break;
-
-
-			default: qDebug() << threadName << " Default Switch Statement Curl Code--> " << res
-				<< "URL-> " << effectiveURL;;
-
-			}
-			/**************
-			*checks curl erros codes
-			*
-			* 5 -- Couldn't resolve proxy. The given proxy host could not be resolved.
-			* 7 -- Failed to connect() to host or proxy.
-			*
-			*********/
-			if (res == 5 || res == 7 || res == 35)
-			{
-				// emit senderCurlResponseInfo("Proxy Error");
-				qDebug() << "Proxy Error" << "URL-> " << effectiveURL << " " << threadName;
-			}
-		}
-
-		/* Always cleanup */
-		curl_easy_cleanup(curl);
-	}
-}
-
-
-void Worker::curlProcess5(QString url, QString threadName)
-{
-	CURL *curl;
-	CURLcode res;
-	curl = curl_easy_init();
-	if (curl)
-	{
-		std::string urlString = url.toStdString();
-		curl_easy_setopt(curl, CURLOPT_URL, urlString.c_str());
-
-		/* google.com is redirected, so we tell LibCurl to follow redirection */
-		curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-		curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, FALSE);
-		curl_easy_setopt(curl, CURLOPT_USERAGENT, "Mozilla/5.0 (Linux; U; Android 4.0.3; ko-kr; LG-L160L Build/IML74K) AppleWebkit/534.30 (KHTML, like Gecko) Version/4.0 Mobile Safari/534.30");
-		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_write5);
-		curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errbuf);
-
-		curl_easy_setopt(curl, CURLOPT_WRITEDATA, this);
-		/* Perform the request, res will get the return code */
-		res = curl_easy_perform(curl);
-		/* Check for errors */
-		if (res != CURLE_OK)
-			fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
-		long httpResponseCode;
-		char* effectiveURL;
-		curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &httpResponseCode);
-		curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL, &effectiveURL);
-
-		/*********HTTP CODE*******/
-		// Log errors,or show message to user if response code is not 200
-		if (httpResponseCode == 200 && res == CURLE_OK) {
-
-			// emit senderCurlResponseInfo("Request Succeded");
-			qDebug() << "HTTP  Code--> " << httpResponseCode << " " << threadName
-				<< " - URL-> " << effectiveURL << "\n";
-		}
-
-		if (httpResponseCode == 503) {
-
-			qDebug() << "503 ERROR CODE " << threadName << "URL-> " << effectiveURL;
-			//  emit senderCurlResponseInfo("503");
-		}
-
-		if (res != CURLE_OK) {
-
-			switch (res)
-			{
-			case 5: qDebug() << threadName << " Curl code-> " << res << " Message->" << errbuf
-				<< "URL-> " << effectiveURL;
-				break;
-			case 7: qDebug() << threadName << " Curl code-> " << res << " Message->" << errbuf
-				<< "URL-> " << effectiveURL;;
-				break;
-			case 35: qDebug() << threadName << " Curl code-> " << res << " Message->" << errbuf
-				<< "URL-> " << effectiveURL;;
-				break;
-			case 56: qDebug() << threadName << " Curl code-> " << res << " Message->" << errbuf
-				<< "URL-> " << effectiveURL;;
-				break;
-
-
-			default: qDebug() << threadName << " Default Switch Statement Curl Code--> " << res
-				<< "URL-> " << effectiveURL;;
-
-			}
-			/**************
-			*checks curl erros codes
-			*
-			* 5 -- Couldn't resolve proxy. The given proxy host could not be resolved.
-			* 7 -- Failed to connect() to host or proxy.
-			*
-			*********/
-			if (res == 5 || res == 7 || res == 35)
-			{
-				// emit senderCurlResponseInfo("Proxy Error");
-				qDebug() << "Proxy Error" << "URL-> " << effectiveURL << " " << threadName;
-			}
-		}
-
-		/* Always cleanup */
-		curl_easy_cleanup(curl);
-	}
-}
 void Worker::readEmailFile(){
 	QFile file("emails.txt");
 	QString strings;
@@ -577,40 +173,15 @@ void Worker::parsedEmails() {
 	{
 		for (int j = 0; j< parsedEmailList1.size(); j++)
 		{
-			emit emitEmailList1(parsedEmailList1.at(j));
-		}
-	}
+			if (!parsedEmailList1.value(j).isEmpty()) {
+				//emit emitEmailList1(parsedEmailList1.value(j));
 
+			}
+		}
+	}
+	
 
-	if (!parsedEmailList2.isEmpty())
-	{
-		for (int j = 0; j< parsedEmailList2.size(); j++)
-		{
-			emit emitEmailList2(parsedEmailList2.at(j));
-		}
-	}
-
-	if (!parsedEmailList3.isEmpty())
-	{
-		for (int j = 0; j< parsedEmailList3.size(); j++)
-		{
-			emit emitEmailList3(parsedEmailList3.at(j));
-		}
-	}
-	if (!parsedEmailList4.isEmpty())
-	{
-		for (int j = 0; j< parsedEmailList4.size(); j++)
-		{
-			emit emitEmailList4(parsedEmailList4.at(j));
-		}
-	}
-	if (!parsedEmailList5.isEmpty())
-	{
-		for (int j = 0; j< parsedEmailList5.size(); j++)
-		{
-			emit emitEmailList5(parsedEmailList5.at(j));
-		}
-	}
+	
 }
 
 
@@ -627,11 +198,11 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 	QString currentKeywordSearchBoxKeyword;
 	QString filterCurrentKeyword;
 	QString itemsFound;
-	QVector<QString>vectorSearchEngineOptions = vectorSearchOptions.at(0);
-	QVector<QString>vectorEmailOptions = vectorSearchOptions.at(1);
-	QVector<QString>vectorSocialNetworks2 = vectorSearchOptions.at(2);
-	int harvesterTimer = timerOptions.at(0);
-	int proxyRotateInterval = timerOptions.at(1);
+	QVector<QString>vectorSearchEngineOptions = vectorSearchOptions.value(0);
+	QVector<QString>vectorEmailOptions = vectorSearchOptions.value(1);
+	QVector<QString>vectorSocialNetworks2 = vectorSearchOptions.value(2);
+	int harvesterTimer = timerOptions.value(0);
+	int proxyRotateInterval = timerOptions.value(1);
 
 	int appTimer;
 	/*********
@@ -645,7 +216,7 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 	// cast long long to int
 	appTimer = static_cast<int>(ms.count());
 	wStop = false;
-	
+
 	if (!lineEdit_keywords_search_box.isEmpty() && fileList->isEmpty() ||
 		!lineEdit_keywords_search_box.isEmpty() && !fileList->isEmpty())
 	{
@@ -655,16 +226,15 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 	}
 
 
+
 	for (int i = 0; i < 999999; i++)
 	{
 
-		parsedEmails();
+
+
+		//parsedEmails();
 		if (wStop) {
 			///lineEdit_keywords_search_box.clear();
-		
-			if (keywordListNumPtrCounter != NULL && emailOptionsNumPtr!=NULL && searchEngineNumPtr!=NULL
-				&& keywordListSearchEngineCounterPtr !=NULL && proxyServerCounterPtr !=NULL
-				&& workerCounterPtr !=NULL) {
 
 				keywordListNumPtrCounter = &keywordListNumPtrNum;
 				emailOptionsNumPtr = &emailOptionsNum;
@@ -679,52 +249,58 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 				*keywordListSearchEngineCounterPtr = 0;
 				*proxyServerCounterPtr = 0;
 				*workerCounterPtr = 0;
+				
 
-			}
+			
 			//fileList->clear();
 			break;
 		}
+
+		
+		/******************************************************
+
+		PROXY CONFIGURATION
 
 		// if workerCounter == *proxyRotateIntervalPtr, reset workerCounter ; if certain number of
 		// http request have been made rotate proxy
 		if (*workerCounterPtr <= proxyRotateInterval)
 		{
-			// only rotate each proxy if proxyCounterPtr is not greater than our proxyServer qlist
-			if ((*proxyServerCounterPtr) <= proxyServers->size())
-			{
-				// if proxy counter is not greater than proxyServer qlist, proxyCounter can increment
-				canProxyCounterIncrement = true;
-			}
+		// only rotate each proxy if proxyCounterPtr is not greater than our proxyServer qlist
+		if ((*proxyServerCounterPtr) <= proxyServers->size())
+		{
+		// if proxy counter is not greater than proxyServer qlist, proxyCounter can increment
+		canProxyCounterIncrement = true;
+		}
 
-			// if proxy counter is equal to the size of proxyServer qlist, we cant increment
-			if ((*proxyServerCounterPtr) == proxyServers->size())
-			{
-				canProxyCounterIncrement = false;
-				// if proxyServerCounter is equal to the size of the proxyServer qlist, reset it to 0
-				*proxyServerCounterPtr = 0;
-			}
+		// if proxy counter is equal to the size of proxyServer qlist, we cant increment
+		if ((*proxyServerCounterPtr) == proxyServers->size())
+		{
+		canProxyCounterIncrement = false;
+		// if proxyServerCounter is equal to the size of the proxyServer qlist, reset it to 0
+		*proxyServerCounterPtr = 0;
+		}
 
 
-			// if proxies contained in qlist empty in main thread, if so clear the proxylist in this thread also
-			if (isProxyEmpty == true && proxyServers->size() == 0)
-			{
-				//qDebug() << "Proxy Empty";
-				//qDebug() << *proxyServers;
-				//qDebug() <<proxyServers->size();
-				proxyServers->clear();
-				*proxies = "";
-			}
+		// if proxies contained in qlist empty in main thread, if so clear the proxylist in this thread also
+		if (isProxyEmpty == true && proxyServers->size() == 0)
+		{
+		//qDebug() << "Proxy Empty";
+		//qDebug() << *proxyServers;
+		//qDebug() <<proxyServers->size();
+		proxyServers->clear();
+		*proxies = "";
+		}
 
-			// if proxies contained in qlist are not empty, and we can keep incrementing,
-			// our proxies are good to use/rotate
-			if (isProxyEmpty == false && canProxyCounterIncrement == true)
-			{
-				*proxies = proxyServers->at(*proxyServerCounterPtr);
-				//qDebug() << "Counter-->" << *proxies;
+		// if proxies contained in qlist are not empty, and we can keep incrementing,
+		// our proxies are good to use/rotate
+		if (isProxyEmpty == false && canProxyCounterIncrement == true)
+		{
+		*proxies = proxyServers->at(*proxyServerCounterPtr);
+		//qDebug() << "Counter-->" << *proxies;
 
-			}
-			//qDebug() << "Counter-->" << *proxyServerCounterPtr;
-			//qDebug() << "Proxies-->" << *proxies;
+		}
+		//qDebug() << "Counter-->" << *proxyServerCounterPtr;
+		//qDebug() << "Proxies-->" << *proxies;
 
 		}
 
@@ -732,10 +308,10 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 		// if workerCounter is greater than *proxyRotateIntervalPtr/ amount of http request before proxy rotates
 		if (*workerCounterPtr >= proxyRotateInterval)
 		{
-			// restart workerCounter
-			*workerCounterPtr = 0;
-			// increment proxyServerPtr to go through each proxyServer index every interval
-			(*proxyServerCounterPtr) += 1;
+		// restart workerCounter
+		*workerCounterPtr = 0;
+		// increment proxyServerPtr to go through each proxyServer index every interval
+		(*proxyServerCounterPtr) += 1;
 
 		}
 
@@ -746,11 +322,11 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 		if (!proxyServers->isEmpty())
 		{
 
-			//qDebug() << *proxies;
+		//qDebug() << *proxies;
 		}
 
 
-
+		*******************************************************/
 
 		if (!fileList->isEmpty())
 		{
@@ -769,9 +345,9 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 		}
 
 		// if vector search engine contains current search engine, assign it it to search eng var
-		if (vectorSearchEngineOptions.contains(vectorSearchEngineOptions.at(*searchEngineNumPtr)))
+		if (vectorSearchEngineOptions.contains(vectorSearchEngineOptions.value(*searchEngineNumPtr)))
 		{
-			searchEngine = vectorSearchEngineOptions.at(*searchEngineNumPtr);
+			searchEngine = vectorSearchEngineOptions.value(*searchEngineNumPtr);
 		}
 
 		/********End Search Engine Options*****/
@@ -793,9 +369,9 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 
 
 
-			if (vectorEmailOptions.contains(vectorEmailOptions.at(*emailOptionsNumPtr)))
+			if (vectorEmailOptions.contains(vectorEmailOptions.value(*emailOptionsNumPtr)))
 			{
-				email = vectorEmailOptions.at(*emailOptionsNumPtr);
+				email = vectorEmailOptions.value(*emailOptionsNumPtr);
 			}
 
 
@@ -807,8 +383,8 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 			}
 
 
-			if (vectorSocialNetworks2.contains(vectorSocialNetworks2.at(*socialNetWorkNumPtr))) {
-				socialNetWork = vectorSocialNetworks2.at(*socialNetWorkNumPtr);
+			if (vectorSocialNetworks2.contains(vectorSocialNetworks2.value(*socialNetWorkNumPtr))) {
+				socialNetWork = vectorSocialNetworks2.value(*socialNetWorkNumPtr);
 			}
 
 			// search engines pagination number
@@ -904,7 +480,7 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 					if (!vectorSearchEngineOptions.last().isEmpty())
 					{
 						vectorSearchEngineOptionsLastItem = vectorSearchEngineOptions.last();
-						if (vectorSearchEngineOptionsLastItem != vectorSearchEngineOptions.at(*searchEngineNumPtr)) {
+						if (vectorSearchEngineOptionsLastItem != vectorSearchEngineOptions.value(*searchEngineNumPtr)) {
 							(*searchEngineNumPtr) += 1;
 						}
 					}
@@ -961,9 +537,9 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 
 
 
-			if (vectorEmailOptions.contains(vectorEmailOptions.at(*emailOptionsNumPtr)))
+			if (vectorEmailOptions.contains(vectorEmailOptions.value(*emailOptionsNumPtr)))
 			{
-				email = vectorEmailOptions.at(*emailOptionsNumPtr);
+				email = vectorEmailOptions.value(*emailOptionsNumPtr);
 			}
 
 
@@ -975,8 +551,8 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 			}
 
 
-			if (vectorSocialNetworks2.contains(vectorSocialNetworks2.at(*socialNetWorkNumPtr))) {
-				socialNetWork = vectorSocialNetworks2.at(*socialNetWorkNumPtr);
+			if (vectorSocialNetworks2.contains(vectorSocialNetworks2.value(*socialNetWorkNumPtr))) {
+				socialNetWork = vectorSocialNetworks2.value(*socialNetWorkNumPtr);
 			}
 
 			// search engines pagination number
@@ -1073,7 +649,7 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 					if (!vectorSearchEngineOptions.last().isEmpty())
 					{
 						vectorSearchEngineOptionsLastItem = vectorSearchEngineOptions.last();
-						if (vectorSearchEngineOptionsLastItem != vectorSearchEngineOptions.at(*searchEngineNumPtr)) {
+						if (vectorSearchEngineOptionsLastItem != vectorSearchEngineOptions.value(*searchEngineNumPtr)) {
 							(*searchEngineNumPtr) += 1;
 						}
 					}
@@ -1132,9 +708,9 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 
 
 
-			if (vectorEmailOptions.contains(vectorEmailOptions.at(*emailOptionsNumPtr)))
+			if (vectorEmailOptions.contains(vectorEmailOptions.value(*emailOptionsNumPtr)))
 			{
-				email = vectorEmailOptions.at(*emailOptionsNumPtr);
+				email = vectorEmailOptions.value(*emailOptionsNumPtr);
 			}
 
 
@@ -1146,8 +722,8 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 			}
 
 
-			if (vectorSocialNetworks2.contains(vectorSocialNetworks2.at(*socialNetWorkNumPtr))) {
-				socialNetWork = vectorSocialNetworks2.at(*socialNetWorkNumPtr);
+			if (vectorSocialNetworks2.contains(vectorSocialNetworks2.value(*socialNetWorkNumPtr))) {
+				socialNetWork = vectorSocialNetworks2.value(*socialNetWorkNumPtr);
 			}
 
 			// search engines pagination number
@@ -1244,7 +820,7 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 					if (!vectorSearchEngineOptions.last().isEmpty())
 					{
 						vectorSearchEngineOptionsLastItem = vectorSearchEngineOptions.last();
-						if (vectorSearchEngineOptionsLastItem != vectorSearchEngineOptions.at(*searchEngineNumPtr)) {
+						if (vectorSearchEngineOptionsLastItem != vectorSearchEngineOptions.value(*searchEngineNumPtr)) {
 							(*searchEngineNumPtr) += 1;
 						}
 					}
@@ -1284,7 +860,7 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 
 		 //curlProcess(searchEngineParam, "Thread 1");
 
-		//qDebug() << searchEngineParam;
+		 //qDebug() << searchEngineParam;
 		if (QString::number(*keywordListNumPtrCounter) == searchResultsPages)
 		{
 			if (!fileList->empty())
@@ -1335,9 +911,9 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 
 		}// end of checking searchResultsPages
 
-		
+
 		if (*curlHTTPRequestCounterPtr == 0) {
-			curlHTTPRequestList.insert(0,searchEngineParam);
+			curlHTTPRequestList.insert(0, searchEngineParam);
 
 		}
 		if (*curlHTTPRequestCounterPtr == 1) {
@@ -1356,28 +932,175 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 			curlHTTPRequestList.insert(4, searchEngineParam);
 
 		}
-		if (*curlHTTPRequestCounterPtr >= 5) 
+
+		if (*curlHTTPRequestCounterPtr == 5) {
+			curlHTTPRequestList.insert(5, searchEngineParam);
+
+		}
+		if (*curlHTTPRequestCounterPtr == 6) {
+			curlHTTPRequestList.insert(6, searchEngineParam);
+
+		}
+		if (*curlHTTPRequestCounterPtr == 7) {
+			curlHTTPRequestList.insert(7, searchEngineParam);
+
+		}
+		if (*curlHTTPRequestCounterPtr == 8) {
+			curlHTTPRequestList.insert(8, searchEngineParam);
+
+		}
+		if (*curlHTTPRequestCounterPtr == 9) {
+			curlHTTPRequestList.insert(9, searchEngineParam);
+
+		}
+
+
+		if (*curlHTTPRequestCounterPtr >= 10)
 		{
 			*curlHTTPRequestCounterPtr = 0;
 		}
 		//qDebug() << *curlHTTPRequestCounterPtr;
 
 		(*curlHTTPRequestCounterPtr) += 1;
-		
 
+
+		if (!parsedEmailList1.isEmpty())
+		{
+			for (int j = 0; j< parsedEmailList1.size(); j++)
+			{
+				if (!parsedEmailList1.value(j).isEmpty()) {
+					emit emitEmailList1(parsedEmailList1.value(j));
+
+				}
+			}
+		}
+		//qDebug() << curlHTTPRequestList;
 		QThread::currentThread()->msleep(appTimer);
 	}// end of for loop
 
-
-	emit finished();
+	
+	//emit finished();
 }
+
+void Worker::curlProcess1(const char *urls[], QString threadName)
+{
+	CURLM *cm = NULL;
+	CURL *eh = NULL;
+	CURLMsg *msg = NULL;
+	CURLcode return_code;
+	int still_running = 0, i = 0, msgs_left = 0;
+	int http_status_code;
+	const char *szUrl;
+
+     /**********
+	 
+	 	static const char *urls[] = {
+		"https://www.bing.com/search?q=site%3ainstagram.com+%40gmail.com+my+dope+mixtape&qs=n&sp=-1&pq=undefined&sc=0-45&sk=&cvid=6C577B0F2A1348BBB5AF38F9AC4CA13A&first=40&FORM=PERE",
+		"https://www.google.com/search?source=hp&ei=lXtWW7fyH6OatgX5o4PYAQ&q=site%3Asoundcloud.com+my+music+%40yahoo.com&oq=site%3Asoundcloud.com+my+music+%40yahoo.com&gs_l=psy-ab.3...2023.14414.0.14723.0.0.0.0.0.0.0.0..0.0....0...1.1.64.psy-ab..0.0.0....0.JXFaGFAvLuo",
+		"https://www.google.com/search?ei=p3tWW6rNEYW-tQXFpILQDA&q=site%3Asoundcloud.com+my+music+%40hotmail.com&oq=site%3Asoundcloud.com+my+music+%40hotmail.com&gs_l=psy-ab.3...17574.19826.0.20059.0.0.0.0.0.0.0.0..0.0....0...1.1.64.psy-ab..0.0.0....0.9fI88o-jUE0",
+		"https://www.bing.com/search?q=site%3Ainstagram.com%20%40yahoo.com%20my%20dope%20mixtape&qs=n&form=QBRE&sp=-1&pq=site%3Ainstagram.com%20%40yahoo.com%20my%20dope%20mixtape&sc=0-45&sk=&cvid=E81997583EA54E0990DB7FB7B24765B7"
+	};
+
+	 *******/
+	curl_global_init(CURL_GLOBAL_ALL);
+	cm = curl_multi_init();
+
+	for (int j = 0; j < 5; ++j) {
+
+		if (wStop) {
+			break;
+		}
+
+		CURL *eh = curl_easy_init();
+		curl_easy_setopt(eh, CURLOPT_HEADER, 0L);
+		curl_easy_setopt(eh, CURLOPT_URL, urls[j]);
+		curl_easy_setopt(eh, CURLOPT_PRIVATE, urls[j]);
+		curl_easy_setopt(eh, CURLOPT_VERBOSE, 0L);
+		curl_easy_setopt(eh, CURLOPT_WRITEFUNCTION, curl_write1);
+		curl_easy_setopt(eh, CURLOPT_WRITEDATA, this);
+		curl_easy_setopt(eh, CURLOPT_FOLLOWLOCATION, 1L); // Tells libcurl to follow HTTP 3xx redirects
+		curl_easy_setopt(eh, CURLOPT_SSL_VERIFYPEER, FALSE);
+		curl_easy_setopt(eh, CURLOPT_BUFFERSIZE, 120000L);
+		curl_easy_setopt(eh, CURLOPT_USERAGENT, "Mozilla/5.0 (Linux; U; Android 2.3.3; zh-tw; HTC_Pyramid Build/GRI40) AppleWebKit/533.1 (KHTML, like Gecko) Version/4.0 Mobile Safari/533.1");
+
+		//curl_easy_setopt(eh, CURLOPT_USERAGENT, "Mozilla/5.0 (Linux; U; Android 2.3.3; zh-tw; HTC_Pyramid Build/GRI40) AppleWebKit/533.1 (KHTML, like Gecko) Version/4.0 Mobile Safari/533.1");
+		curl_multi_add_handle(cm, eh);
+
+	}
+
+	do {
+		int numfds = 0;
+		int res = curl_multi_wait(cm, NULL, 0, MAX_WAIT_MSECS, &numfds);
+		if (res != CURLM_OK) {
+			fprintf(stderr, "error: curl_multi_wait() returned %d\n", res);
+			qDebug() << res;
+
+		}
+
+		if (!numfds) {
+			fprintf(stderr, "error: curl_multi_wait() numfds=%d\n", numfds);
+			qDebug() << res;
+		}
+
+		curl_multi_perform(cm, &still_running);
+
+	} while (still_running);
+
+	while ((msg = curl_multi_info_read(cm, &msgs_left))) {
+		if (msg->msg == CURLMSG_DONE) {
+			eh = msg->easy_handle;
+
+			return_code = msg->data.result;
+			if (return_code != CURLE_OK) {
+				fprintf(stderr, "CURL error code: %d\n", msg->data.result);
+				std::cout << msg->data.result;
+				qDebug() << msg->data.result;
+				continue;
+			}
+
+			// Get HTTP status code
+			http_status_code = 0;
+			szUrl = NULL;
+
+			curl_easy_getinfo(eh, CURLINFO_RESPONSE_CODE, &http_status_code);
+			curl_easy_getinfo(eh, CURLINFO_PRIVATE, &szUrl);
+
+			if (http_status_code == 200) {
+				qDebug() << "200 OK";
+				qDebug() << "RESULT-->" << msg->data.result;
+				qDebug() << "URL-->" << szUrl;
+
+			}
+			else {
+
+				qDebug() << "ERROR CODE->"<<http_status_code;
+				qDebug() << "URL in ERROR-->" << http_status_code;
+
+			}
+
+			curl_multi_remove_handle(cm, eh);
+			curl_easy_cleanup(eh);
+		}
+		else {
+			qDebug() << "error: after curl_multi_info_read()-->" << msg->msg;
+		}
+	}
+
+	curl_multi_cleanup(cm);
+
+
+
+}
+
 
 void Worker::doWork1()
 {
 
 	for (int i = 0; i < 999999; i++)
 	{
-		
+		if (wStop) {
+			break;
+		}
 
 		if (!curlHTTPRequestList.isEmpty()) {
 			if (curlHTTPRequestList.size() >= 5)
@@ -1387,33 +1110,90 @@ void Worker::doWork1()
 				Use only 4 indexes at one time within curlHTTPRequest list
 				
 				******/
+				
+				std::string urls0;
+				std::string urls1;
+				std::string urls2;
+				std::string urls3;
+				std::string urls4;
+
+				std::string urls5;
+				std::string urls6;
+				std::string urls7;
+				std::string urls8;
+				std::string urls9;
 
 
 				if (!curlHTTPRequestList.value(0).isEmpty())
 				{
-					curlProcess1(curlHTTPRequestList.value(0), "Instance 1");
+					urls0 = curlHTTPRequestList.value(0).toStdString();
 
 				}
 				if (!curlHTTPRequestList.value(1).isEmpty())
 				{
-					curlProcess1(curlHTTPRequestList.value(1), "Instance 2");
+					urls1 = curlHTTPRequestList.value(1).toStdString();
 
 				}
 				if (!curlHTTPRequestList.value(2).isEmpty())
 				{
-					curlProcess1(curlHTTPRequestList.value(2), "Instance 3");
+					urls2 = curlHTTPRequestList.value(2).toStdString();
 
 				}
 				if (!curlHTTPRequestList.value(3).isEmpty())
 				{
-					curlProcess1(curlHTTPRequestList.value(3), "Instance 4");
+					urls3 = curlHTTPRequestList.value(3).toStdString();
 
 				}
 				if (!curlHTTPRequestList.value(4).isEmpty())
 				{
-					curlProcess1(curlHTTPRequestList.value(4), "Instance 5");
+					urls4 = curlHTTPRequestList.value(4).toStdString();
 
 				}
+
+				if (!curlHTTPRequestList.value(5).isEmpty())
+				{
+					urls5 = curlHTTPRequestList.value(5).toStdString();
+
+				}
+				if (!curlHTTPRequestList.value(6).isEmpty())
+				{
+					urls6 = curlHTTPRequestList.value(6).toStdString();
+
+				}
+				if (!curlHTTPRequestList.value(7).isEmpty())
+				{
+					urls7 = curlHTTPRequestList.value(7).toStdString();
+
+				}
+				if (!curlHTTPRequestList.value(8).isEmpty())
+				{
+					urls8 = curlHTTPRequestList.value(8).toStdString();
+
+				}
+				if (!curlHTTPRequestList.value(9).isEmpty())
+				{
+					urls9 = curlHTTPRequestList.value(9).toStdString();
+
+				}
+
+			
+				const char *urls[] = 
+				{
+					urls0.c_str(),
+					urls1.c_str(),
+					urls2.c_str(),
+					urls3.c_str(),
+					urls4.c_str(),
+
+					urls5.c_str(),
+					urls6.c_str(),
+					urls7.c_str(),
+					urls8.c_str(),
+					urls9.c_str()
+				};
+
+				
+				curlProcess1(urls, "Instance");
 				curlHTTPRequestList.clear();
 				
 				//qDebug() << curlHTTPRequest.value(0);
@@ -1421,7 +1201,6 @@ void Worker::doWork1()
 				//qDebug() << curlHTTPRequest.value(2);
 				//qDebug() << curlHTTPRequest.value(3);
 				//qDebug() << curlHTTPRequest.value(4);
-
 				
 			}
 		}
@@ -1435,91 +1214,6 @@ void Worker::doWork1()
 	}// end of for loop
 }
 
-
-
-void Worker::getParam(QString url, QString userAgent, QList <QString> *proxyServers)
-{
-	*urlQueryParam = url;
-	QStringList httpList;
-
-	// if proxies are empty
-	if (proxies->isEmpty())
-	{
-		httpList << url << userAgent;
-		httpRequestList->append(httpList);
-
-	}
-	// if proxies are not empty
-	if (!proxies->isEmpty())
-	{
-		httpList << url << userAgent << *proxies;
-		httpRequestList->append(httpList);
-
-	}
-
-
-
-
-	// if workerCounter == *proxyRotateIntervalPtr, reset workerCounter ; if certain number of
-	// http request have been made rotate proxy
-	if (*workerCounterPtr <= *proxyRotateIntervalPtr)
-	{
-		// only rotate each proxy if proxyCounterPtr is not greater than our proxyServer qlist
-		if ((*proxyServerCounterPtr) <= proxyServers->size())
-		{
-			// if proxy counter is not greater than proxyServer qlist, proxyCounter can increment
-			canProxyCounterIncrement = true;
-		}
-
-		// if proxy counter is equal to the size of proxyServer qlist, we cant increment
-		if ((*proxyServerCounterPtr) == proxyServers->size())
-		{
-			canProxyCounterIncrement = false;
-			// if proxyServerCounter is equal to the size of the proxyServer qlist, reset it to 0
-			*proxyServerCounterPtr = 0;
-		}
-
-
-		// if proxies contained in qlist empty in main thread, if so clear the proxylist in this thread also
-		if (isProxyEmpty == true && proxyServers->size() == 0)
-		{
-			//qDebug() << "Proxy Empty";
-			//qDebug() << *proxyServers;
-			//qDebug() <<proxyServers->size();
-			proxyServers->clear();
-			*proxies = "";
-		}
-
-		// if proxies contained in qlist are not empty, and we can keep incrementing,
-		// our proxies are good to use/rotate
-		if (isProxyEmpty == false && canProxyCounterIncrement == true)
-		{
-			*proxies = proxyServers->at(*proxyServerCounterPtr);
-			//qDebug() << "Counter-->" << *proxies;
-
-		}
-		//qDebug() << "Counter-->" << *proxyServerCounterPtr;
-		//qDebug() << "Proxies-->" << *proxies;
-
-	}
-
-
-	// if workerCounter is greater than *proxyRotateIntervalPtr/ amount of http request before proxy rotates
-	if (*workerCounterPtr >= *proxyRotateIntervalPtr)
-	{
-		// restart workerCounter
-		*workerCounterPtr = 0;
-		// increment proxyServerPtr to go through each proxyServer index every interval
-		(*proxyServerCounterPtr) += 1;
-
-	}
-
-	// increment workerCounter if we have not hit our http request limit to rotate each proxy
-	(*workerCounterPtr) += 1;
-
-
-
-}
 
 void Worker::getProxyFile(QString fileName)
 {
@@ -1576,16 +1270,15 @@ void Worker::receiverAppOptions(int harvesterTimer, int proxyRotateInterval) {
 
 }
 
-
 void Worker::processedEmails(QString emails) {
 	//emit emitEmailList(emails);
 	//qDebug() << s;
 }
+
 void Worker::processedEmails2(QString emails) {
 	//emit emitEmailList2(emails);
 	//qDebug() << s;
 }
-
 
 size_t Worker::curl_write1(char *ptr, size_t size, size_t nmemb, void *stream)
 {
@@ -1609,248 +1302,32 @@ size_t Worker::curl_write1(char *ptr, size_t size, size_t nmemb, void *stream)
 
 
 	while (i.hasNext()) {
-		QRegularExpressionMatch match = i.next();
 
+		if (static_cast<Worker*>(stream)->wStop == true) {
+			break;
+		}
+		QRegularExpressionMatch match = i.next();
 		if (!match.captured(0).isEmpty())
 			word = match.captured(0);
 		//words << word;
 		//MainWindow::emails = &words;
 		if (!word.isEmpty()) {
 			words << word;
-			// emailList = words.at(num);
+			// emailList = words.value(num);
 			list << words;
-			//emit emitEmailList(words.at(num));
-			//qDebug() << words.at(num);
-			static_cast<Worker*>(stream)->processedEmails(words.at(num));
+			//emit emitEmailList(words.value(num));
+			//qDebug() << words.value(num);
+			//static_cast<Worker*>(stream)->processedEmails(words.value(num));
 			//qDebug() << num;
-			parsedEmailList1.insert(num, words.at(num));
-
+			if (!words.value(num).isEmpty()) {
+				parsedEmailList1.insert(num, words.value(num));
+			}
 			num++;
 
 		} // end words !empty
 
 	} // end while
 
-
-	  //	struct MemoryStruct *mem = (struct MemoryStruct *)stream;
-
-	  //increase the size of "memory" by the size of the bytes that we have read
-	  //	mem->memory = (char *)realloc(mem->memory, mem->size + realsize + 1);
-
-
-	return size*nmemb;
-
-}
-
-size_t Worker::curl_write2(char *ptr, size_t size, size_t nmemb, void *stream)
-{
-	//buffer.append((char*)ptr, size*nmemb);
-
-	size_t realsize = size * nmemb;
-	QByteArray response(ptr, static_cast<int>(realsize));
-	QString responseString = QString(response);
-	QString plainText = QTextDocumentFragment::fromHtml(responseString).toPlainText();
-	QString filteredNewLine = plainText.replace("\n", " ");
-	QRegularExpression re("[0-9a-zA-Z]+([0-9a-zA-Z]*[-._+])*[0-9a-zA-Z]+@[0-9a-zA-Z]+([-.][0-9a-zA-Z]+)*([0-9a-zA-Z]*[.])[a-zA-Z]{2,6}");
-	QRegularExpressionMatchIterator i = re.globalMatch(filteredNewLine);
-	//qDebug() << filteredNewLine;
-	QStringList words;
-	QStringList test;
-	QString word;
-	QRegularExpressionMatch match;
-	QList<QString> list;
-	QString emailList;
-	int num = 0;
-
-
-
-	while (i.hasNext()) {
-		QRegularExpressionMatch match = i.next();
-
-		if (!match.captured(0).isEmpty())
-			word = match.captured(0);
-		if (!word.isEmpty()) {
-			words << word;
-			list << words;
-			//emit emitEmailList(words.at(num));
-			//qDebug() << words.at(num);
-			static_cast<Worker*>(stream)->processedEmails2(words.at(num));			
-
-			parsedEmailList2.insert(num, words.at(num));
-			num++;
-
-		} // end words if !empty
-
-	} // end while
-
-	  //	struct MemoryStruct *mem = (struct MemoryStruct *)stream;
-
-	
-	  //increase the size of "memory" by the size of the bytes that we have read
-	  //	mem->memory = (char *)realloc(mem->memory, mem->size + realsize + 1);
-
-
-	return size*nmemb;
-
-}
-
-size_t Worker::curl_write3(char *ptr, size_t size, size_t nmemb, void *stream)
-{
-	//buffer.append((char*)ptr, size*nmemb);
-
-	size_t realsize = size * nmemb;
-	QByteArray response(ptr, static_cast<int>(realsize));
-	QString responseString = QString(response);
-	QString plainText = QTextDocumentFragment::fromHtml(responseString).toPlainText();
-	QString filteredNewLine = plainText.replace("\n", " ");
-	QRegularExpression re("[0-9a-zA-Z]+([0-9a-zA-Z]*[-._+])*[0-9a-zA-Z]+@[0-9a-zA-Z]+([-.][0-9a-zA-Z]+)*([0-9a-zA-Z]*[.])[a-zA-Z]{2,6}");
-	QRegularExpressionMatchIterator i = re.globalMatch(filteredNewLine);
-	//qDebug() << filteredNewLine;
-	QStringList words;
-	QStringList test;
-	QString word;
-	QRegularExpressionMatch match;
-	QList<QString> list;
-	QString emailList;
-	int num = 0;
-
-
-
-	while (i.hasNext()) {
-		QRegularExpressionMatch match = i.next();
-
-		if (!match.captured(0).isEmpty())
-			word = match.captured(0);
-		if (!word.isEmpty()) {
-			words << word;
-			list << words;
-			//emit emitEmailList(words.at(num));
-			//qDebug() << words.at(num);
-			static_cast<Worker*>(stream)->processedEmails2(words.at(num));
-
-
-			parsedEmailList3.insert(num, words.at(num));
-
-			num++;
-
-		} // end words if !empty
-
-	} // end while
-
-	  //	struct MemoryStruct *mem = (struct MemoryStruct *)stream;
-
-
-	  //increase the size of "memory" by the size of the bytes that we have read
-	  //	mem->memory = (char *)realloc(mem->memory, mem->size + realsize + 1);
-
-
-	return size*nmemb;
-
-}
-
-size_t Worker::curl_write4(char *ptr, size_t size, size_t nmemb, void *stream)
-{
-	//buffer.append((char*)ptr, size*nmemb);
-
-	size_t realsize = size * nmemb;
-	QByteArray response(ptr, static_cast<int>(realsize));
-	QString responseString = QString(response);
-	QString plainText = QTextDocumentFragment::fromHtml(responseString).toPlainText();
-	QString filteredNewLine = plainText.replace("\n", " ");
-	QRegularExpression re("[0-9a-zA-Z]+([0-9a-zA-Z]*[-._+])*[0-9a-zA-Z]+@[0-9a-zA-Z]+([-.][0-9a-zA-Z]+)*([0-9a-zA-Z]*[.])[a-zA-Z]{2,6}");
-	QRegularExpressionMatchIterator i = re.globalMatch(filteredNewLine);
-	//qDebug() << filteredNewLine;
-	QStringList words;
-	QStringList test;
-	QString word;
-	QRegularExpressionMatch match;
-	QList<QString> list;
-	QString emailList;
-	int num = 0;
-
-
-
-	while (i.hasNext()) {
-		QRegularExpressionMatch match = i.next();
-
-		if (!match.captured(0).isEmpty())
-			word = match.captured(0);
-		if (!word.isEmpty()) {
-			words << word;
-			list << words;
-			//emit emitEmailList(words.at(num));
-			//qDebug() << words.at(num);
-			static_cast<Worker*>(stream)->processedEmails2(words.at(num));
-
-
-			parsedEmailList4.insert(num, words.at(num));
-
-			num++;
-
-		} // end words if !empty
-
-	} // end while
-
-	  //	struct MemoryStruct *mem = (struct MemoryStruct *)stream;
-
-
-	  //increase the size of "memory" by the size of the bytes that we have read
-	  //	mem->memory = (char *)realloc(mem->memory, mem->size + realsize + 1);
-
-
-	return size*nmemb;
-
-}
-
-
-size_t Worker::curl_write5(char *ptr, size_t size, size_t nmemb, void *stream)
-{
-	//buffer.append((char*)ptr, size*nmemb);
-
-	size_t realsize = size * nmemb;
-	QByteArray response(ptr, static_cast<int>(realsize));
-	QString responseString = QString(response);
-	QString plainText = QTextDocumentFragment::fromHtml(responseString).toPlainText();
-	QString filteredNewLine = plainText.replace("\n", " ");
-	QRegularExpression re("[0-9a-zA-Z]+([0-9a-zA-Z]*[-._+])*[0-9a-zA-Z]+@[0-9a-zA-Z]+([-.][0-9a-zA-Z]+)*([0-9a-zA-Z]*[.])[a-zA-Z]{2,6}");
-	QRegularExpressionMatchIterator i = re.globalMatch(filteredNewLine);
-	//qDebug() << filteredNewLine;
-	QStringList words;
-	QStringList test;
-	QString word;
-	QRegularExpressionMatch match;
-	QList<QString> list;
-	QString emailList;
-	int num = 0;
-
-
-
-	while (i.hasNext()) {
-		QRegularExpressionMatch match = i.next();
-
-		if (!match.captured(0).isEmpty())
-			word = match.captured(0);
-		if (!word.isEmpty()) {
-			words << word;
-			list << words;
-			//emit emitEmailList(words.at(num));
-			//qDebug() << words.at(num);
-			static_cast<Worker*>(stream)->processedEmails2(words.at(num));
-
-
-
-			parsedEmailList5.insert(num, words.at(num));
-			num++;
-
-		} // end words if !empty
-
-	} // end while
-
-	  //	struct MemoryStruct *mem = (struct MemoryStruct *)stream;
-
-
-	  //increase the size of "memory" by the size of the bytes that we have read
-	  //	mem->memory = (char *)realloc(mem->memory, mem->size + realsize + 1);
 
 
 	return size*nmemb;

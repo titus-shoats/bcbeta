@@ -44,8 +44,6 @@ public:
 	void setEmailTable();
 	QString toDebug(const QByteArray & line);
 	void receiverParameters();
-	void populateEmailTable();
-
 
 
 private slots:
@@ -68,7 +66,7 @@ private slots:
 
 
 
-	public slots:
+public slots:
 
 	void receiverEmailList(QString);
 	//void receiverParameters();
@@ -83,6 +81,11 @@ private slots:
 	void receiverDataTest(QString s);
 	void recieverFinishReadingKeywordFile();
 	void receiverEmailList2(QString list);
+	void populateEmailTable();
+	void receiverEnableDeleteKeywordCheckBox();
+	void receiverEnableDeleteEmailCheckBox();
+	void reEnableStartButton();
+
 
 signals:
 	void postParam(QString, QString, QList <QString> *);
@@ -95,6 +98,7 @@ signals:
 	void senderStopFileReaderThread();
 	void on_stop();
 	void emitRemoveThreadFileList();
+	void emitRemoveThreadEmailList();
 
 private:
 	Ui::BeatCrawler *ui;
@@ -140,7 +144,7 @@ private:
 	QList <QString> *emailList;
 	// sets QSet back to list
 	// this is because were setting a qlist to qset to remove dups, then from a qset to qlist again
-	QList <QString> setEmailList;
+    QList<QString> setEmailList;
 	QList <QString> *proxyServers;
 	QList<QVector <QString>>vectorSearchOptions;
 	QList<int>timerOptions;
