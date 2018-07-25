@@ -78,7 +78,7 @@ public slots:
 	void receiverFileReadKeywordList(QString fileName, QString data, int keywordSize);
 	void disableStartButtonLoadKeywordList();
 	void enableStartButtonLoadKeywordList();
-	void receiverDataTest(QString s);
+	void receiverFinishHarvestResults(QString s);
 	void recieverFinishReadingKeywordFile();
 	void receiverEmailList2(QString list);
 	void populateEmailTable();
@@ -141,6 +141,8 @@ private:
 	bool  isProxyPortValid;
 	bool  isProxyHostValid;
 
+	bool isMultiAndKeywordBoxSelected;
+
 	QList <QString> *emailList;
 	// sets QSet back to list
 	// this is because were setting a qlist to qset to remove dups, then from a qset to qlist again
@@ -148,6 +150,8 @@ private:
 	QList <QString> *proxyServers;
 	QList<QVector <QString>>vectorSearchOptions;
 	QList<int>timerOptions;
+	QList<QString>otherOptions;
+
 	QThread *thread;
 	QThread *thread1;
 	Worker * worker;

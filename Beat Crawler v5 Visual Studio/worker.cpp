@@ -36,7 +36,18 @@ Worker::Worker(QObject *parent) :
 	curlHTTPRequestCounterNum = 0;
 	curlHTTPRequestCounterPtr = reinterpret_cast<int *>(&curlHTTPRequestCounterNum);
 
+	curlMultiProcessCounterNum = 0;
+	curlMultiProcessPtrCounter = reinterpret_cast<int *>(&curlMultiProcessCounterNum);
+
+
+
 	wStop = false;
+	multiURLOptionString = "";
+	multiURLOption = reinterpret_cast<QString *>(&multiURLOptionString);
+
+	multiOptionOneURLString = "";
+	multiOptionOneURL = reinterpret_cast<QString *>(&multiOptionOneURLString);
+
 
 
 	proxyServers = new QList <QString>();
@@ -46,16 +57,16 @@ Worker::Worker(QObject *parent) :
 	fileListPtr = &fileListNum;
 	currentKeyword = "";
 	currentKeywordPtr = &currentKeyword;
-	keywordListNumPtrNum = 0;
-	keywordListNumPtrCounter = &keywordListNumPtrNum;
+	curlSingleProcessCounterNum = 0;
+	curlSingleProcessPtrCounter = &curlSingleProcessCounterNum;
 	searchEngineNum = 0;
 	searchEngineNumPtr = &searchEngineNum;
 	emailOptionsNum = 0;
 	emailOptionsNumPtr = &emailOptionsNum;
 	socialNetWorkNum = 0;
 	socialNetWorkNumPtr = &socialNetWorkNum;
-	keywordListSearchEngineCounterNum = 0;
-	keywordListSearchEngineCounterPtr = &keywordListSearchEngineCounterNum;
+	searchEnginePaginationCounterNum = 0;
+	searchEnginePaginationCounterPtr = &searchEnginePaginationCounterNum;
 	errbuf[0] = 0;
 	deleteKeywordCheckBoxTimer = new QTimer();
 	//connect(deleteKeywordCheckBoxTimer, SIGNAL(timeout), this, SLOT(deleteKeywordCheckBox()));
@@ -70,9 +81,9 @@ Worker::~Worker()
 	delete fileList;
 	delete proxyServers;
 	delete deleteKeywordCheckBoxTimer;
-	
-	
-	
+
+
+
 }
 
 void Worker::requestWork()
@@ -80,7 +91,7 @@ void Worker::requestWork()
 	emit workRequested();
 }
 
-void Worker::abort(){}
+void Worker::abort() {}
 
 void Worker::stop()
 {
@@ -114,7 +125,7 @@ void Worker::receiverRemoveThreadFileList()
 			emit emitsenderEnableDeleteKeywordCheckBox();
 			break;
 		}
-	}	
+	}
 }
 
 void Worker::receiverReadFile(QString fileName)
@@ -148,7 +159,7 @@ void Worker::receiverReadFile(QString fileName)
 }
 
 
-void Worker::readEmailFile(){
+void Worker::readEmailFile() {
 	QFile file("emails.txt");
 	QString strings;
 	QString str;
@@ -179,15 +190,17 @@ void Worker::parsedEmails() {
 			}
 		}
 	}
-	
 
-	
+
+
 }
 
 
 void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 	QString lineEdit_keywords_search_box, QList <QString> *proxyServers,
-	QList<int>timerOptions, QString searchResultsPages)
+	QList<int>timerOptions, QList<QString>otherOptions)
+	//QList<QString>otherOptions
+	// searchResultsPages
 {
 	QString searchEngineParam;
 	QString castSearchQueryNumPtr;
@@ -203,8 +216,9 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 	QVector<QString>vectorSocialNetworks2 = vectorSearchOptions.value(2);
 	int harvesterTimer = timerOptions.value(0);
 	int proxyRotateInterval = timerOptions.value(1);
-
+	QString searchResultsPages = otherOptions.value(0);
 	int appTimer;
+	QString multiOptionURLAmount;
 	/*********
 	Chrono is namespace, meaning a certain class will on be in its scope
 	Within this namespace we have a class thats a template name seconds, that takes a long long type -- which is seconds
@@ -217,6 +231,7 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 	appTimer = static_cast<int>(ms.count());
 	wStop = false;
 
+	// Checks if keyword box is empty, and if file list if empty, if so by default put keyword box value into filelist
 	if (!lineEdit_keywords_search_box.isEmpty() && fileList->isEmpty() ||
 		!lineEdit_keywords_search_box.isEmpty() && !fileList->isEmpty())
 	{
@@ -225,6 +240,15 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 
 	}
 
+	// MULTI URL OPTION
+	if (!otherOptions.value(1).isEmpty()) 
+	{
+		*multiURLOption = otherOptions.value(1);
+	}
+	if (!otherOptions.value(2).isEmpty()) {
+
+		multiOptionURLAmount = otherOptions.value(2);
+	}
 
 
 	for (int i = 0; i < 999999; i++)
@@ -236,27 +260,27 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 		if (wStop) {
 			///lineEdit_keywords_search_box.clear();
 
-				keywordListNumPtrCounter = &keywordListNumPtrNum;
-				emailOptionsNumPtr = &emailOptionsNum;
-				searchEngineNumPtr = &searchEngineNum;
-				keywordListSearchEngineCounterPtr = &keywordListSearchEngineCounterNum;
-				proxyServerCounterPtr = &proxyServerCounterNum;
-				workerCounterPtr = &workerCounterNum;
+			curlSingleProcessPtrCounter = &curlSingleProcessCounterNum;
+			emailOptionsNumPtr = &emailOptionsNum;
+			searchEngineNumPtr = &searchEngineNum;
+			searchEnginePaginationCounterPtr = &searchEnginePaginationCounterNum;
+			proxyServerCounterPtr = &proxyServerCounterNum;
+			workerCounterPtr = &workerCounterNum;
 
-				*keywordListNumPtrCounter = 0;
-				*emailOptionsNumPtr = 0;
-				*searchEngineNumPtr = 0;
-				*keywordListSearchEngineCounterPtr = 0;
-				*proxyServerCounterPtr = 0;
-				*workerCounterPtr = 0;
-				
+			*curlSingleProcessPtrCounter = 0;
+			*emailOptionsNumPtr = 0;
+			*searchEngineNumPtr = 0;
+			*searchEnginePaginationCounterPtr = 0;
+			*proxyServerCounterPtr = 0;
+			*workerCounterPtr = 0;
 
-			
+
+
 			//fileList->clear();
 			break;
 		}
 
-		
+
 		/******************************************************
 
 		PROXY CONFIGURATION
@@ -295,7 +319,7 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 		// our proxies are good to use/rotate
 		if (isProxyEmpty == false && canProxyCounterIncrement == true)
 		{
-		*proxies = proxyServers->at(*proxyServerCounterPtr);
+		*proxies = proxyServers->value(*proxyServerCounterPtr);
 		//qDebug() << "Counter-->" << *proxies;
 
 		}
@@ -331,10 +355,10 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 		if (!fileList->isEmpty())
 		{
 			// on load is 0 which is the first index value
-			*currentKeywordPtr = fileList->at(*fileListPtr);
+			*currentKeywordPtr = fileList->value(*fileListPtr);
 		}
 
-		(*keywordListNumPtrCounter) += 1;
+		(*curlSingleProcessPtrCounter) += 1;
 
 		/**********Search Engine Options ******/
 
@@ -388,10 +412,10 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 			}
 
 			// search engines pagination number
-			(*keywordListSearchEngineCounterPtr) += 10;
+			(*searchEnginePaginationCounterPtr) += 10;
 
 			/*****Cast num to string to put inside query string******/
-			castSearchQueryNumPtr = QString::number(*keywordListSearchEngineCounterPtr);
+			castSearchQueryNumPtr = QString::number(*searchEnginePaginationCounterPtr);
 
 
 			/**********
@@ -411,7 +435,7 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 			if (!lineEdit_keywords_search_box.isEmpty() && fileList->isEmpty() || !lineEdit_keywords_search_box.isEmpty() && !fileList->isEmpty())
 			{
 
-				currentKeywordSearchBoxKeyword = fileList->at(0);
+				currentKeywordSearchBoxKeyword = fileList->value(0);
 				searchEngineParam = "https://www.google.com/search?q=" + socialNetWork + "%20"
 					+ email + "%20" + currentKeywordSearchBoxKeyword.replace(" ", "+") +
 					"&ei=yv8oW8TYCOaN5wKImJ2YBQ&start=" + castSearchQueryNumPtr + "&sa=N&biw=1366&bih=613";
@@ -429,7 +453,7 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 
 			/****Continues email quene until its the last item in array***/
 
-			if (*keywordListSearchEngineCounterPtr == 100) {
+			if (*searchEnginePaginationCounterPtr == 100) {
 				if (*emailOptionsNumPtr == vectorEmailOptions.size() - 1) {
 
 					*emailOptionsNumPtr = 0;
@@ -442,7 +466,7 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 
 			/****Continues social network quene until its the last item in array***/
 
-			if (*keywordListSearchEngineCounterPtr == 100) {
+			if (*searchEnginePaginationCounterPtr == 100) {
 				if (*socialNetWorkNumPtr == vectorSocialNetworks2.size() - 1) {
 
 					*socialNetWorkNumPtr = 0;
@@ -462,8 +486,8 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 			* Stops social network, email, ans search engine quene, and moves on to next search engine
 			******/
 
-			if (*keywordListSearchEngineCounterPtr == 100) {
-				*keywordListSearchEngineCounterPtr = 0;
+			if (*searchEnginePaginationCounterPtr == 100) {
+				*searchEnginePaginationCounterPtr = 0;
 
 				// if social network pointer, and email options pointer is equal
 				//than the size of  socialNetworkOptions arrary,
@@ -514,7 +538,7 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 			//qDebug() << searchEngineParam;
 			// qDebug()<<  searchEngine;
 			// qDebug()<<  vectorSearchEngineOptions;
-			// qDebug() << *keywordListSearchEngineCounterPtr;
+			// qDebug() << *searchEnginePaginationCounterPtr;
 
 
 
@@ -556,10 +580,10 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 			}
 
 			// search engines pagination number
-			(*keywordListSearchEngineCounterPtr) += 10;
+			(*searchEnginePaginationCounterPtr) += 10;
 
 			/*****Cast num to string to put inside query string******/
-			castSearchQueryNumPtr = QString::number(*keywordListSearchEngineCounterPtr);
+			castSearchQueryNumPtr = QString::number(*searchEnginePaginationCounterPtr);
 
 
 			/**********
@@ -575,7 +599,7 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 			if (!lineEdit_keywords_search_box.isEmpty() && fileList->isEmpty() || !lineEdit_keywords_search_box.isEmpty() && !fileList->isEmpty())
 			{
 
-				currentKeywordSearchBoxKeyword = fileList->at(0);
+				currentKeywordSearchBoxKeyword = fileList->value(0);
 				searchEngineParam = "https://www.bing.com/search?q=" +
 					socialNetWork + "%20"
 					+ email + "%20" + currentKeywordSearchBoxKeyword.replace(" ", "+") +
@@ -598,7 +622,7 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 
 			/****Continues email quene until its the last item in array***/
 
-			if (*keywordListSearchEngineCounterPtr == 100) {
+			if (*searchEnginePaginationCounterPtr == 100) {
 				if (*emailOptionsNumPtr == vectorEmailOptions.size() - 1) {
 
 					*emailOptionsNumPtr = 0;
@@ -611,7 +635,7 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 
 			/****Continues social network quene until its the last item in array***/
 
-			if (*keywordListSearchEngineCounterPtr == 100) {
+			if (*searchEnginePaginationCounterPtr == 100) {
 				if (*socialNetWorkNumPtr == vectorSocialNetworks2.size() - 1) {
 
 					*socialNetWorkNumPtr = 0;
@@ -631,8 +655,8 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 			* Stops social network, email, ans search engine quene, and moves on to next search engine
 			******/
 
-			if (*keywordListSearchEngineCounterPtr == 100) {
-				*keywordListSearchEngineCounterPtr = 0;
+			if (*searchEnginePaginationCounterPtr == 100) {
+				*searchEnginePaginationCounterPtr = 0;
 
 				// if social network pointer, and email options pointer is equal
 				//than the size of  socialNetworkOptions arrary,
@@ -683,7 +707,7 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 			// qDebug() << searchEngineParam;
 			// qDebug()<<  searchEngine;
 			// qDebug()<<  vectorSearchEngineOptions;
-			// qDebug() << *keywordListSearchEngineCounterPtr;
+			// qDebug() << *searchEnginePaginationCounterPtr;
 
 
 
@@ -727,10 +751,10 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 			}
 
 			// search engines pagination number
-			(*keywordListSearchEngineCounterPtr) += 10;
+			(*searchEnginePaginationCounterPtr) += 10;
 
 			/*****Cast num to string to put inside query string******/
-			castSearchQueryNumPtr = QString::number(*keywordListSearchEngineCounterPtr);
+			castSearchQueryNumPtr = QString::number(*searchEnginePaginationCounterPtr);
 
 
 			/**********
@@ -746,7 +770,7 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 			if (!lineEdit_keywords_search_box.isEmpty() && fileList->isEmpty() || !lineEdit_keywords_search_box.isEmpty() && !fileList->isEmpty())
 			{
 
-				currentKeywordSearchBoxKeyword = fileList->at(0);
+				currentKeywordSearchBoxKeyword = fileList->value(0);
 				searchEngineParam = "https://search.yahoo.com/search;_ylt=A2KIbNDlJS1b7nIAYNNx.9w4;_ylu=X3oDMTFjN3E2bWhuBGNvbG8DYmYxBHBvcwMxBHZ0aWQDVUkyRkJUMl8xBHNlYwNwYWdpbmF0aW9u?p=" +
 					socialNetWork + "%20"
 					+ email + "%20" + currentKeywordSearchBoxKeyword.replace(" ", "+") +
@@ -769,7 +793,7 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 
 			/****Continues email quene until its the last item in array***/
 
-			if (*keywordListSearchEngineCounterPtr == 100) {
+			if (*searchEnginePaginationCounterPtr == 100) {
 				if (*emailOptionsNumPtr == vectorEmailOptions.size() - 1) {
 
 					*emailOptionsNumPtr = 0;
@@ -782,7 +806,7 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 
 			/****Continues social network quene until its the last item in array***/
 
-			if (*keywordListSearchEngineCounterPtr == 100) {
+			if (*searchEnginePaginationCounterPtr == 100) {
 				if (*socialNetWorkNumPtr == vectorSocialNetworks2.size() - 1) {
 
 					*socialNetWorkNumPtr = 0;
@@ -802,8 +826,8 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 			* Stops social network, email, ans search engine quene, and moves on to next search engine
 			******/
 
-			if (*keywordListSearchEngineCounterPtr == 100) {
-				*keywordListSearchEngineCounterPtr = 0;
+			if (*searchEnginePaginationCounterPtr == 100) {
+				*searchEnginePaginationCounterPtr = 0;
 
 				// if social network pointer, and email options pointer is equal
 				//than the size of  socialNetworkOptions arrary,
@@ -850,18 +874,12 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 			// qDebug() << searchEngineParam;
 			// qDebug()<<  searchEngine;
 			// qDebug()<<  vectorSearchEngineOptions;
-			// qDebug() << *keywordListSearchEngineCounterPtr;
+			// qDebug() << *searchEnginePaginationCounterPtr;
 
 		}// end of checking if search engine is Yahoo
 
 		 /****if timer is less or equal to search results combox box***/
-		 // qDebug() << searchResultsPages;
-		 // qDebug() << *keywordListNumPtrCounter;
-
-		 //curlProcess(searchEngineParam, "Thread 1");
-
-		 //qDebug() << searchEngineParam;
-		if (QString::number(*keywordListNumPtrCounter) == searchResultsPages)
+		if (QString::number(*curlSingleProcessPtrCounter) == searchResultsPages && *multiURLOption == "1_URL_SELECTED")
 		{
 			if (!fileList->empty())
 			{
@@ -881,21 +899,21 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 				if (fileList->value(*fileListPtr) != fileList->last() && fileList->value(*fileListPtr) != fileList->last().isEmpty())
 				{
 					(*fileListPtr) += 1;
-					*keywordListNumPtrCounter = 0;
+					*curlSingleProcessPtrCounter = 0;
 
 				}
 
-				// Current value matches the last keyword
+				// Current value matches the last keyword, no more items
 				if (fileList->value(*fileListPtr) == fileList->last())
 				{
 					if (*fileListPtr > fileList->size()) {
 						*fileListPtr = 0;  // just in case the pointer goes beyond fileList size()
 					}
-					*keywordListNumPtrCounter = 0;
-					fileList->clear();
+					*curlSingleProcessPtrCounter = 0;
+					//fileList->clear();
 					*fileListPtr = 0;
 					wStop = true;
-					emit emitSenderHarvestResults("Finised File List");
+					//emit emitSenderHarvestResults("Finised File List");
 				}
 
 			}// end of checking if fileList is empty
@@ -903,65 +921,119 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 			if (fileList->isEmpty() && !lineEdit_keywords_search_box.isEmpty())
 			{
 				*fileListPtr = 0;
-				emit emitSenderHarvestResults("Finished Keyword Box");
+				//emit emitSenderHarvestResults("Finished Keyword Box");
 				wStop = true;
 			}
 
+			
 
 
 		}// end of checking searchResultsPages
 
 
-		if (*curlHTTPRequestCounterPtr == 0) {
-			curlHTTPRequestList.insert(0, searchEngineParam);
+		/*******************************CURL MULTI CONFIG*********************************/
 
-		}
-		if (*curlHTTPRequestCounterPtr == 1) {
-			curlHTTPRequestList.insert(1, searchEngineParam);
-
-		}
-		if (*curlHTTPRequestCounterPtr == 2) {
-			curlHTTPRequestList.insert(2, searchEngineParam);
-
-		}
-		if (*curlHTTPRequestCounterPtr == 3) {
-			curlHTTPRequestList.insert(3, searchEngineParam);
-
-		}
-		if (*curlHTTPRequestCounterPtr == 4) {
-			curlHTTPRequestList.insert(4, searchEngineParam);
-
-		}
-
-		if (*curlHTTPRequestCounterPtr == 5) {
-			curlHTTPRequestList.insert(5, searchEngineParam);
-
-		}
-		if (*curlHTTPRequestCounterPtr == 6) {
-			curlHTTPRequestList.insert(6, searchEngineParam);
-
-		}
-		if (*curlHTTPRequestCounterPtr == 7) {
-			curlHTTPRequestList.insert(7, searchEngineParam);
-
-		}
-		if (*curlHTTPRequestCounterPtr == 8) {
-			curlHTTPRequestList.insert(8, searchEngineParam);
-
-		}
-		if (*curlHTTPRequestCounterPtr == 9) {
-			curlHTTPRequestList.insert(9, searchEngineParam);
-
-		}
-
-
-		if (*curlHTTPRequestCounterPtr >= 10)
+		qDebug() << "MULTI COUNT-->" <<QString::number(*curlMultiProcessPtrCounter);
+		if (otherOptions.value(2) == QString::number(*curlMultiProcessPtrCounter) && *multiURLOption == "MULTI_URL_SELECTED")
 		{
-			*curlHTTPRequestCounterPtr = 0;
-		}
-		//qDebug() << *curlHTTPRequestCounterPtr;
 
-		(*curlHTTPRequestCounterPtr) += 1;
+
+			if (!fileList->empty())
+			{
+				filterCurrentKeyword = *currentKeywordPtr;
+				filterCurrentKeyword = filterCurrentKeyword.replace("+", " ");
+				qDebug() <<"Current Keyword-->"<< filterCurrentKeyword;
+
+				/***********
+				If we  have more elements in list, and if so move to the next item
+
+				-If current value dosent match the keyword
+				- If current value dosent match the last item
+				Then theres more elements in last
+				********/
+
+				// If Current value does not matches last item, theres more items
+				if (fileList->value(*fileListPtr) != fileList->last() && fileList->value(*fileListPtr) != fileList->last().isEmpty())
+				{
+					(*fileListPtr) += 1;
+					*curlMultiProcessPtrCounter = 0;
+
+				}
+
+				// Current value matches the last keyword, no more items
+				if (fileList->value(*fileListPtr) == fileList->last())
+				{
+					if (*fileListPtr > fileList->size()) {
+						*fileListPtr = 0;  // just in case the pointer goes beyond fileList size()
+					}
+					*curlMultiProcessPtrCounter = 0;
+					//fileList->clear();
+					*fileListPtr = 0;
+					wStop = true;
+					qDebug() << "CURL MULTI DONE";
+
+					//emit emitSenderHarvestResults("Finised File List");
+				}
+
+			}// end of checking if fileList is empty
+
+			
+		}
+
+		/**********
+		If multioption 1_URL_SELECTED is true and keyword box is true only use a single url
+		If multioption MULTI_URL_SELECTED is true and keyword box is true only use a single url
+
+		WORKING PROGESS BELOW TO NOT NEED MESSAGE BOX TO SHOW USER MULTI ONLY WORKS WITH A FILELIST
+
+		if (*multiURLOption == "1_URL_SELECTED" && !lineEdit_keywords_search_box.isEmpty() ||
+		*multiURLOption == "MULTI_URL_SELECTED" && !lineEdit_keywords_search_box.isEmpty())
+
+		*********/
+		if (*multiURLOption == "1_URL_SELECTED")
+		{
+			*multiOptionOneURL = searchEngineParam;
+
+		}
+		
+		if (*multiURLOption == "MULTI_URL_SELECTED") {
+
+			if (*curlHTTPRequestCounterPtr == 0) {
+				curlHTTPRequestList.insert(0, searchEngineParam);
+				
+
+			}
+			if (*curlHTTPRequestCounterPtr == 1) {
+				curlHTTPRequestList.insert(1, searchEngineParam);
+				
+			}
+			if (*curlHTTPRequestCounterPtr == 2) {
+				curlHTTPRequestList.insert(2, searchEngineParam);
+				
+
+			}
+			if (*curlHTTPRequestCounterPtr == 3) {
+				curlHTTPRequestList.insert(3, searchEngineParam);
+				
+			}
+			if (*curlHTTPRequestCounterPtr == 4) {
+				curlHTTPRequestList.insert(4, searchEngineParam);
+
+			}
+
+
+			if (*curlHTTPRequestCounterPtr >= 5)
+			{
+				//reset curl multi process to 1
+				(*curlMultiProcessPtrCounter) += 1;
+				//reset curl http request counter to 0
+				*curlHTTPRequestCounterPtr = 0;
+			}
+
+			(*curlHTTPRequestCounterPtr) += 1;
+
+		}
+		
 
 
 		if (!parsedEmailList1.isEmpty())
@@ -978,8 +1050,8 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 		QThread::currentThread()->msleep(appTimer);
 	}// end of for loop
 
-	
-	//emit finished();
+
+	 //emit finished();
 }
 
 void Worker::curlProcess1(const char *urls[], QString threadName)
@@ -991,30 +1063,59 @@ void Worker::curlProcess1(const char *urls[], QString threadName)
 	int still_running = 0, i = 0, msgs_left = 0;
 	int http_status_code;
 	const char *szUrl;
+	int multiOption =5;
 
-     /**********
-	 
-	 	static const char *urls[] = {
-		"https://www.bing.com/search?q=site%3ainstagram.com+%40gmail.com+my+dope+mixtape&qs=n&sp=-1&pq=undefined&sc=0-45&sk=&cvid=6C577B0F2A1348BBB5AF38F9AC4CA13A&first=40&FORM=PERE",
-		"https://www.google.com/search?source=hp&ei=lXtWW7fyH6OatgX5o4PYAQ&q=site%3Asoundcloud.com+my+music+%40yahoo.com&oq=site%3Asoundcloud.com+my+music+%40yahoo.com&gs_l=psy-ab.3...2023.14414.0.14723.0.0.0.0.0.0.0.0..0.0....0...1.1.64.psy-ab..0.0.0....0.JXFaGFAvLuo",
-		"https://www.google.com/search?ei=p3tWW6rNEYW-tQXFpILQDA&q=site%3Asoundcloud.com+my+music+%40hotmail.com&oq=site%3Asoundcloud.com+my+music+%40hotmail.com&gs_l=psy-ab.3...17574.19826.0.20059.0.0.0.0.0.0.0.0..0.0....0...1.1.64.psy-ab..0.0.0....0.9fI88o-jUE0",
-		"https://www.bing.com/search?q=site%3Ainstagram.com%20%40yahoo.com%20my%20dope%20mixtape&qs=n&form=QBRE&sp=-1&pq=site%3Ainstagram.com%20%40yahoo.com%20my%20dope%20mixtape&sc=0-45&sk=&cvid=E81997583EA54E0990DB7FB7B24765B7"
+	/**********
+
+	static const char *urls[] = {
+	"https://www.bing.com/search?q=site%3ainstagram.com+%40gmail.com+my+dope+mixtape&qs=n&sp=-1&pq=undefined&sc=0-45&sk=&cvid=6C577B0F2A1348BBB5AF38F9AC4CA13A&first=40&FORM=PERE",
+	"https://www.google.com/search?source=hp&ei=lXtWW7fyH6OatgX5o4PYAQ&q=site%3Asoundcloud.com+my+music+%40yahoo.com&oq=site%3Asoundcloud.com+my+music+%40yahoo.com&gs_l=psy-ab.3...2023.14414.0.14723.0.0.0.0.0.0.0.0..0.0....0...1.1.64.psy-ab..0.0.0....0.JXFaGFAvLuo",
+	"https://www.google.com/search?ei=p3tWW6rNEYW-tQXFpILQDA&q=site%3Asoundcloud.com+my+music+%40hotmail.com&oq=site%3Asoundcloud.com+my+music+%40hotmail.com&gs_l=psy-ab.3...17574.19826.0.20059.0.0.0.0.0.0.0.0..0.0....0...1.1.64.psy-ab..0.0.0....0.9fI88o-jUE0",
+	"https://www.bing.com/search?q=site%3Ainstagram.com%20%40yahoo.com%20my%20dope%20mixtape&qs=n&form=QBRE&sp=-1&pq=site%3Ainstagram.com%20%40yahoo.com%20my%20dope%20mixtape&sc=0-45&sk=&cvid=E81997583EA54E0990DB7FB7B24765B7"
 	};
 
-	 *******/
+	*******/
 	curl_global_init(CURL_GLOBAL_ALL);
 	cm = curl_multi_init();
 
-	for (int j = 0; j < 5; ++j) {
+	// How many urls to parse base on user selection, 1 is default
+	if (*multiURLOption == "MULTI_URL_SELECTED") {
+		for (int j = 0; j < 5; ++j) {
+
+			if (wStop) {
+				break;
+			}
+
+			CURL *eh = curl_easy_init();
+			curl_easy_setopt(eh, CURLOPT_HEADER, 0L);
+			curl_easy_setopt(eh, CURLOPT_URL, urls[j]);
+			curl_easy_setopt(eh, CURLOPT_PRIVATE, urls[j]);
+			curl_easy_setopt(eh, CURLOPT_VERBOSE, 0L);
+			curl_easy_setopt(eh, CURLOPT_WRITEFUNCTION, curl_write1);
+			curl_easy_setopt(eh, CURLOPT_WRITEDATA, this);
+			curl_easy_setopt(eh, CURLOPT_FOLLOWLOCATION, 1L); // Tells libcurl to follow HTTP 3xx redirects
+			curl_easy_setopt(eh, CURLOPT_SSL_VERIFYPEER, FALSE);
+			curl_easy_setopt(eh, CURLOPT_BUFFERSIZE, 120000L);
+			curl_easy_setopt(eh, CURLOPT_USERAGENT, "Mozilla/5.0 (Linux; U; Android 2.3.3; zh-tw; HTC_Pyramid Build/GRI40) AppleWebKit/533.1 (KHTML, like Gecko) Version/4.0 Mobile Safari/533.1");
+
+			//curl_easy_setopt(eh, CURLOPT_USERAGENT, "Mozilla/5.0 (Linux; U; Android 2.3.3; zh-tw; HTC_Pyramid Build/GRI40) AppleWebKit/533.1 (KHTML, like Gecko) Version/4.0 Mobile Safari/533.1");
+			curl_multi_add_handle(cm, eh);
+
+		}
+	}
+	if (*multiURLOption == "1_URL_SELECTED") {
+		for (int j = 0; j < 1; ++j) {
 
 		if (wStop) {
 			break;
 		}
+	
 
 		CURL *eh = curl_easy_init();
+		std::string test = multiOptionOneURL->toStdString();
 		curl_easy_setopt(eh, CURLOPT_HEADER, 0L);
-		curl_easy_setopt(eh, CURLOPT_URL, urls[j]);
-		curl_easy_setopt(eh, CURLOPT_PRIVATE, urls[j]);
+		curl_easy_setopt(eh, CURLOPT_URL, test.c_str());
+		curl_easy_setopt(eh, CURLOPT_PRIVATE, test.c_str());
 		curl_easy_setopt(eh, CURLOPT_VERBOSE, 0L);
 		curl_easy_setopt(eh, CURLOPT_WRITEFUNCTION, curl_write1);
 		curl_easy_setopt(eh, CURLOPT_WRITEDATA, this);
@@ -1022,11 +1123,13 @@ void Worker::curlProcess1(const char *urls[], QString threadName)
 		curl_easy_setopt(eh, CURLOPT_SSL_VERIFYPEER, FALSE);
 		curl_easy_setopt(eh, CURLOPT_BUFFERSIZE, 120000L);
 		curl_easy_setopt(eh, CURLOPT_USERAGENT, "Mozilla/5.0 (Linux; U; Android 2.3.3; zh-tw; HTC_Pyramid Build/GRI40) AppleWebKit/533.1 (KHTML, like Gecko) Version/4.0 Mobile Safari/533.1");
-
-		//curl_easy_setopt(eh, CURLOPT_USERAGENT, "Mozilla/5.0 (Linux; U; Android 2.3.3; zh-tw; HTC_Pyramid Build/GRI40) AppleWebKit/533.1 (KHTML, like Gecko) Version/4.0 Mobile Safari/533.1");
 		curl_multi_add_handle(cm, eh);
 
+	 }
 	}
+	
+
+	
 
 	do {
 		int numfds = 0;
@@ -1065,17 +1168,16 @@ void Worker::curlProcess1(const char *urls[], QString threadName)
 			curl_easy_getinfo(eh, CURLINFO_RESPONSE_CODE, &http_status_code);
 			curl_easy_getinfo(eh, CURLINFO_PRIVATE, &szUrl);
 
-			if (http_status_code == 200) {
+			if (http_status_code == 200) 
+			{
 				qDebug() << "200 OK";
-				qDebug() << "RESULT-->" << msg->data.result;
-				qDebug() << "URL-->" << szUrl;
-
+				//qDebug() << "RESULT-->" << msg->data.result;
+				//qDebug() << "URL-->" << szUrl;
 			}
-			else {
-
-				qDebug() << "ERROR CODE->"<<http_status_code;
+			else 
+			{
+				qDebug() << "ERROR CODE->" << http_status_code;
 				qDebug() << "URL in ERROR-->" << http_status_code;
-
 			}
 
 			curl_multi_remove_handle(cm, eh);
@@ -1101,111 +1203,95 @@ void Worker::doWork1()
 		if (wStop) {
 			break;
 		}
+		
 
-		if (!curlHTTPRequestList.isEmpty()) {
-			if (curlHTTPRequestList.size() >= 5)
-			{
-
-				/*******
-				Use only 4 indexes at one time within curlHTTPRequest list
-				
-				******/
-				
-				std::string urls0;
-				std::string urls1;
-				std::string urls2;
-				std::string urls3;
-				std::string urls4;
-
-				std::string urls5;
-				std::string urls6;
-				std::string urls7;
-				std::string urls8;
-				std::string urls9;
-
-
-				if (!curlHTTPRequestList.value(0).isEmpty())
+		if (*multiURLOption == "1_URL_SELECTED")
+		{
+			if (!multiOptionOneURL->isEmpty()) {
+				std::string single_url = multiOptionOneURL->toStdString();
+				const char *single_urls[] =
 				{
-					urls0 = curlHTTPRequestList.value(0).toStdString();
-
-				}
-				if (!curlHTTPRequestList.value(1).isEmpty())
-				{
-					urls1 = curlHTTPRequestList.value(1).toStdString();
-
-				}
-				if (!curlHTTPRequestList.value(2).isEmpty())
-				{
-					urls2 = curlHTTPRequestList.value(2).toStdString();
-
-				}
-				if (!curlHTTPRequestList.value(3).isEmpty())
-				{
-					urls3 = curlHTTPRequestList.value(3).toStdString();
-
-				}
-				if (!curlHTTPRequestList.value(4).isEmpty())
-				{
-					urls4 = curlHTTPRequestList.value(4).toStdString();
-
-				}
-
-				if (!curlHTTPRequestList.value(5).isEmpty())
-				{
-					urls5 = curlHTTPRequestList.value(5).toStdString();
-
-				}
-				if (!curlHTTPRequestList.value(6).isEmpty())
-				{
-					urls6 = curlHTTPRequestList.value(6).toStdString();
-
-				}
-				if (!curlHTTPRequestList.value(7).isEmpty())
-				{
-					urls7 = curlHTTPRequestList.value(7).toStdString();
-
-				}
-				if (!curlHTTPRequestList.value(8).isEmpty())
-				{
-					urls8 = curlHTTPRequestList.value(8).toStdString();
-
-				}
-				if (!curlHTTPRequestList.value(9).isEmpty())
-				{
-					urls9 = curlHTTPRequestList.value(9).toStdString();
-
-				}
-
-			
-				const char *urls[] = 
-				{
-					urls0.c_str(),
-					urls1.c_str(),
-					urls2.c_str(),
-					urls3.c_str(),
-					urls4.c_str(),
-
-					urls5.c_str(),
-					urls6.c_str(),
-					urls7.c_str(),
-					urls8.c_str(),
-					urls9.c_str()
+					single_url.c_str()
 				};
-
-				
-				curlProcess1(urls, "Instance");
-				curlHTTPRequestList.clear();
-				
-				//qDebug() << curlHTTPRequest.value(0);
-				//qDebug() << curlHTTPRequest.value(1);
-				//qDebug() << curlHTTPRequest.value(2);
-				//qDebug() << curlHTTPRequest.value(3);
-				//qDebug() << curlHTTPRequest.value(4);
-				
+				curlProcess1(single_urls, "Single Instance");
 			}
+		
 		}
 
-	
+		if (!curlHTTPRequestList.isEmpty()) {
+
+			if (*multiURLOption == "MULTI_URL_SELECTED") 
+			{
+
+				if (curlHTTPRequestList.size() >= 5)
+				{
+					/*******
+					Use only 4 indexes at one time within curlHTTPRequest list
+
+					******/
+
+					std::string urls0;
+					std::string urls1;
+					std::string urls2;
+					std::string urls3;
+					std::string urls4;
+
+
+					if (!curlHTTPRequestList.value(0).isEmpty())
+					{
+						urls0 = curlHTTPRequestList.value(0).toStdString();
+
+					}
+					if (!curlHTTPRequestList.value(1).isEmpty())
+					{
+						urls1 = curlHTTPRequestList.value(1).toStdString();
+
+					}
+					if (!curlHTTPRequestList.value(2).isEmpty())
+					{
+						urls2 = curlHTTPRequestList.value(2).toStdString();
+
+					}
+					if (!curlHTTPRequestList.value(3).isEmpty())
+					{
+						urls3 = curlHTTPRequestList.value(3).toStdString();
+
+					}
+					if (!curlHTTPRequestList.value(4).isEmpty())
+					{
+						urls4 = curlHTTPRequestList.value(4).toStdString();
+
+					}
+
+					
+
+
+					const char *urls[] =
+					{
+						urls0.c_str(),
+						urls1.c_str(),
+						urls2.c_str(),
+						urls3.c_str(),
+						urls4.c_str()
+					};
+
+
+					curlProcess1(urls, "Multi");
+					curlHTTPRequestList.clear();
+
+					//qDebug() << curlHTTPRequest.value(0);
+					//qDebug() << curlHTTPRequest.value(1);
+					//qDebug() << curlHTTPRequest.value(2);
+					//qDebug() << curlHTTPRequest.value(3);
+					//qDebug() << curlHTTPRequest.value(4);
+
+				}
+
+			}// end if multi is selected
+
+		}
+
+
 		if (wStop)
 		{
 			break;
@@ -1333,7 +1419,6 @@ size_t Worker::curl_write1(char *ptr, size_t size, size_t nmemb, void *stream)
 	return size*nmemb;
 
 }
-
 
 
 
