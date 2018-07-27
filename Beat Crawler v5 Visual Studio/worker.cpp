@@ -1238,8 +1238,11 @@ void Worker::curlProcess1(const char *urls[], QString threadName)
 				result = curl_easy_perform(curl);
 				long httpResponseCode;
 				char* effectiveURL;
+				double totalTime;
 				curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &httpResponseCode);
 				curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL, &effectiveURL);
+				curl_easy_getinfo(curl, CURLINFO_TOTAL_TIME, &totalTime);
+
 
 
 
@@ -1251,26 +1254,42 @@ void Worker::curlProcess1(const char *urls[], QString threadName)
 					{
 					case 5: qDebug() << threadName << " Curl code-> " << result << " Message->" << errbuf
 						<< "URL-> " << effectiveURL;
+						logHarvesterStatus.prepend("Proxy could not be resolved. URL: " + QString(effectiveURL));
+						emit senderCurlResponseInfo("Proxy Error");
+
 						break;
 					case 7: qDebug() << threadName << " Curl code-> " << result << " Message->" << errbuf
-						<< "URL-> " << effectiveURL;;
+						<< "URL-> " << effectiveURL;
+						logHarvesterStatus.prepend("Could not connect to proxy or host. URL: " + QString(effectiveURL));
+						emit senderCurlResponseInfo("Proxy Error");
+
 						break;
 
 
-					case 28: qDebug() << threadName << " Curl code-> " << return_code << " Message->" << errbuf
-						<< "URL-> " << effectiveURL;;
+					case 28: qDebug() << threadName << " Curl code-> " << result << " Message->" << errbuf
+						<< "URL-> " << effectiveURL;
+						logHarvesterStatus.prepend("The server has temporarily blocked your Proxy or IP Address. URL: " + QString(effectiveURL));
+
 						break;
+
 
 					case 35: qDebug() << threadName << " Curl code-> " << result << " Message->" << errbuf
-						<< "URL-> " << effectiveURL;;
+						<< "URL-> " << effectiveURL;
+						logHarvesterStatus.prepend("The server has temporarily blocked your Proxy or IP Address. URL: " + QString(effectiveURL));
+						emit senderCurlResponseInfo("Proxy Error");
+
 						break;
 					case 56: qDebug() << threadName << " Curl code-> " << result << " Message->" << errbuf
-						<< "URL-> " << effectiveURL;;
+						<< "URL-> " << effectiveURL;
+						logHarvesterStatus.prepend("Failure receiving network data. URL: " + QString(effectiveURL));
+
 						break;
 
 
 					default: qDebug() << threadName << " Default Switch Statement Curl Code--> " << result
-						<< "URL-> " << effectiveURL;;
+						<< "URL-> " << effectiveURL;
+						logHarvesterStatus.prepend("DEFAULT:: " +QByteArray(errbuf)+ " URL: " +QString(effectiveURL));
+
 
 					}
 					/**************
@@ -1280,25 +1299,19 @@ void Worker::curlProcess1(const char *urls[], QString threadName)
 					* 7 -- Failed to connect() to host or proxy.
 					* 28 -- Operation timeout, The specified timeout was reached
 					*********/
-					if (result == 5 || result == 7 || result == 35)
-					{
-						emit senderCurlResponseInfo("Proxy Error");
-						qDebug() << "Proxy Error" << "URL-> " << effectiveURL << " " << threadName;
-					}
+				
 
-					if (return_code == 28)
-					{
-						emit senderCurlResponseInfo("Timed Out");
-						qDebug() << "TIMEDOUT REACHED " << "URL-> " << effectiveURL << " " << threadName;
-					}
+					
 
 				}// end of result != CURLE_OK			
 
 				if (httpResponseCode == 200 && result == CURLE_OK) {
 
-					// emit senderCurlResponseInfo("Request Succeded");
+					emit senderCurlResponseInfo("Request Succeded");
 					qDebug() << "HTTP  Code--> " << httpResponseCode << " " << threadName
 						<< " - URL-> " << effectiveURL << "\n";
+					logHarvesterStatus.prepend("Successfully Crawling. URL: " + QString(effectiveURL));
+
 
 				}
 
@@ -1307,8 +1320,12 @@ void Worker::curlProcess1(const char *urls[], QString threadName)
 				if (httpResponseCode == 503) {
 
 					qDebug() << "503 ERROR CODE " << threadName << "URL-> " << effectiveURL;
-					//  emit senderCurlResponseInfo("503");
+					logHarvesterStatus.prepend("Proxy Server or IP Address is temporarily blocked. URL: " + QString(effectiveURL));
+
+					emit senderCurlResponseInfo("503");
 				}
+
+				emit emitSenderLogHarvesterStatus(logHarvesterStatus);
 			}// end of checking is true
 
 			 /* Always cleanup */

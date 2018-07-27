@@ -87,7 +87,7 @@ public:
 	void receiverEnableDeleteEmailCheckBox();
 	void reEnableStartButton();
 	void receiverCurrentKeyword(QString keyword);
-
+	void receiverLogHarvesterStatus(QStringList logStatus);
 
 signals:
 	void postParam(QString, QString, QList <QString> *);
@@ -201,6 +201,7 @@ private:
 	int previousPagesNum;
 	QString *currentKeyword_;
 	QString currentKeywordString_;
+	QStringListModel *logHarvesterStatusModel;
 
 };
 

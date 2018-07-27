@@ -179,7 +179,7 @@ private:
 	QString multiURLOptionString;
 	QString *multiOptionOneURL;
 	QString multiOptionOneURLString;
-
+	QStringList logHarvesterStatus;
 
 
 signals:
@@ -212,7 +212,7 @@ signals:
 	void emitsenderEnableDeleteKeywordCheckBox();
 	void emitsenderEnableDeleteEmailCheckBox();
 	void emitsendCurrentKeyword(QString keyword);
-
+	void emitSenderLogHarvesterStatus(QStringList logStatus);
 	public slots:
 	/**
 	* @brief Does something

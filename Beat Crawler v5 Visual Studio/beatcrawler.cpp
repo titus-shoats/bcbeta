@@ -78,6 +78,8 @@ BeatCrawler::BeatCrawler(QWidget *parent) :
 
 	connect(&threadWorker, &Worker::emitsendCurrentKeyword, this, &BeatCrawler::receiverCurrentKeyword);
 
+	connect(&threadWorker, &Worker::emitSenderLogHarvesterStatus, this, &BeatCrawler::receiverLogHarvesterStatus);
+
 	//connect(keywordsQueueTableTimer, SIGNAL(timeout()), this, SLOT(keywordsQueueTable()));
 
 	connect(this, &BeatCrawler::on_stop, &threadWorker, &Worker::stop);
@@ -97,6 +99,7 @@ BeatCrawler::BeatCrawler(QWidget *parent) :
 	}
 	emailTableModel = new QStandardItemModel();
 	fileList = new QStringList();
+	logHarvesterStatusModel = new QStringListModel();
 
 	currentKeywordString_ = "";
 	currentKeyword_ = &currentKeywordString_;
@@ -249,7 +252,7 @@ BeatCrawler::~BeatCrawler()
 	delete timer;
 	delete keywordsQueueTableTimer;
 	delete emailTableModel;
-
+	delete logHarvesterStatusModel;
 	//fileReader->abort();
 	//thread1->wait();
 	//delete thread1;
@@ -2241,6 +2244,13 @@ void BeatCrawler::populateEmailTable() {
 }
 
 
+void BeatCrawler::receiverLogHarvesterStatus(QStringList logStatus)
+
+{
+
+	logHarvesterStatusModel->setStringList(logStatus);
+	ui->listView_Log_Harvester_Status->setModel(logHarvesterStatusModel);
+}
 void BeatCrawler::receiverEmailList2(QString list)
 
 
@@ -2636,7 +2646,7 @@ void BeatCrawler::recieverCurlResponseInfo(QString info)
 	if (info == "Proxy Error" || info == "503")
 	{
 
-		ui->label_Curl_Status->setText("Status: Proxy failed, or Server is Temporarily Unavailable");
+		ui->label_Curl_Status->setText("<bold><font color='black'> Status: Proxy failed, or Server is Temporarily Unavailable</font></bold>");
 		//QTimer::singleShot(10,this,SLOT(deleteEmailsListTable()));
 		emailList->clear();
 		setEmailList.clear();
@@ -2649,7 +2659,8 @@ void BeatCrawler::recieverCurlResponseInfo(QString info)
 	}
 	else if (info == "Request Succeded")
 	{
-		ui->label_Curl_Status->setText("Status: Successfully Crawling");
+			ui->label_Curl_Status->setText("<bold> <font color='green'> Status: Successfully Crawling</font></bold>");
+
 	}
 }
 

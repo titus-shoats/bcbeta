@@ -234,7 +234,7 @@
        </font>
       </property>
       <property name="currentIndex">
-       <number>3</number>
+       <number>4</number>
       </property>
       <widget class="QWidget" name="tab_6">
        <attribute name="title">
@@ -740,6 +740,34 @@
         </property>
         <property name="text">
          <string>Amount of Multi URL's to parse</string>
+        </property>
+       </widget>
+      </widget>
+      <widget class="QWidget" name="tab_9">
+       <attribute name="title">
+        <string>Log</string>
+       </attribute>
+       <widget class="QListView" name="listView_Log_Harvester_Status">
+        <property name="geometry">
+         <rect>
+          <x>10</x>
+          <y>30</y>
+          <width>571</width>
+          <height>161</height>
+         </rect>
+        </property>
+       </widget>
+       <widget class="QLabel" name="label_8">
+        <property name="geometry">
+         <rect>
+          <x>20</x>
+          <y>10</y>
+          <width>131</width>
+          <height>16</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Harvester Request  Status</string>
         </property>
        </widget>
       </widget>
