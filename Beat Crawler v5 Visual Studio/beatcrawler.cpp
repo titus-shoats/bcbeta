@@ -40,7 +40,8 @@ BeatCrawler::BeatCrawler(QWidget *parent) :
 	this->setFixedSize(size);
 	setSearchResults();
 	setProxyTable();
-	//setEmailTable();
+
+
 	setWindowTitle("Beat Crawler V0.1.9 (C) Beatcrawler.com");
 	ui->lineEdit_keywords_search_box->setPlaceholderText("my mixtape");
 	fetchWriteCallBackCurlDataString = "";
@@ -49,16 +50,17 @@ BeatCrawler::BeatCrawler(QWidget *parent) :
 
 	// The thread and the worker are created in the constructor so it is always safe to delete them.
 	timer = new QTimer();
+	keywordsQueueTableTimer = new QTimer();
 	thread = new QThread();
 	thread1 = new QThread();
 	worker = new Worker();
 	worker->moveToThread(thread);
 
-	//connect(worker, SIGNAL(finished()), thread, SLOT(quit()), Qt::DirectConnection);
+	connect(worker, SIGNAL(finished()), thread, SLOT(quit()), Qt::DirectConnection);
 	//connect(this, SIGNAL(emitSenderReadFile(QString)), fileReader, SLOT(receiverReadFile(QString)));
-    //connect(&threadWorker,&Worker::emitDataTest, this,&BeatCrawler::receiverDataTest);
-	//connect(&threadWorker, &Worker::emitSenderHarvestResults, this, &BeatCrawler::receiverDataTest);
-	connect(worker, SIGNAL(workRequested()), thread, SLOT(start()));
+	//connect(&threadWorker,&Worker::emitDataTest, this,&BeatCrawler::receiverDataTest);
+	connect(&threadWorker, &Worker::emitFinishSenderHarvestResults, this, &BeatCrawler::receiverFinishHarvestResults);
+	//connect(worker, SIGNAL(workRequested()), thread, SLOT(start()));
 	connect(timer, SIGNAL(timeout()), this, SLOT(populateEmailTable()));
 
 	connect(&threadWorker, &Worker::emitfinishReadingKeywordFile, this, &BeatCrawler::recieverFinishReadingKeywordFile);
@@ -66,20 +68,26 @@ BeatCrawler::BeatCrawler(QWidget *parent) :
 	connect(this, &BeatCrawler::emitRemoveThreadFileList, &threadWorker, &Worker::receiverRemoveThreadFileList);
 	connect(&threadWorker, &Worker::emitsenderEnableDeleteKeywordCheckBox, this, &BeatCrawler::receiverEnableDeleteKeywordCheckBox);
 
-	
+
 	connect(this, &BeatCrawler::emitRemoveThreadEmailList, &threadWorker, &Worker::receiverRemoveThreadEmailList);
 	connect(&threadWorker, &Worker::emitsenderEnableDeleteEmailCheckBox, this, &BeatCrawler::receiverEnableDeleteEmailCheckBox);
 
 	connect(&threadWorker, &Worker::emitEmailList1, this, &BeatCrawler::receiverEmailList);
+
+	connect(&threadWorker, &Worker::senderCurlResponseInfo, this, &BeatCrawler::recieverCurlResponseInfo);
+
+	connect(&threadWorker, &Worker::emitsendCurrentKeyword, this, &BeatCrawler::receiverCurrentKeyword);
+
+	//connect(keywordsQueueTableTimer, SIGNAL(timeout()), this, SLOT(keywordsQueueTable()));
 
 	connect(this, &BeatCrawler::on_stop, &threadWorker, &Worker::stop);
 
 
 
 	//emitsenderEnableDeleteEmailCheckBox()
-	
+
 	//populateEmailTable();
-	
+
 
 	emailList = new QList <QString>();
 	proxyServers = new QList <QString>();
@@ -90,10 +98,12 @@ BeatCrawler::BeatCrawler(QWidget *parent) :
 	emailTableModel = new QStandardItemModel();
 	fileList = new QStringList();
 
+	currentKeywordString_ = "";
+	currentKeyword_ = &currentKeywordString_;
 	// ui->lineEdit_keywords_search_box->installEventFilter(this);
 
 	/******
-	
+
 	QStringList emailTableHeaders;
 	emailTableHeaders << "Emails";
 	ui->tableWidget_Emails->setRowCount(8);
@@ -103,7 +113,7 @@ BeatCrawler::BeatCrawler(QWidget *parent) :
 	ui->tableWidget_Emails->resizeRowsToContents();
 	ui->tableWidget_Emails->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 	********/
-	
+
 
 	ui->pushButton_Next_Email_Pagination->setEnabled(false);
 	ui->pushButton_Previous_Email_Pagination->setEnabled(false);
@@ -132,8 +142,8 @@ BeatCrawler::BeatCrawler(QWidget *parent) :
 			QStandardItem *item = new QStandardItem(" ");
 			emailTableModel->setItem(row, column, item);
 
-				delete item;
-			
+			delete item;
+
 		}
 	}
 
@@ -143,7 +153,7 @@ BeatCrawler::BeatCrawler(QWidget *parent) :
 
 
 
-	
+
 
 	ui->pushButton_Start->setCheckable(true);
 	ui->checkBox_Bing->setChecked(true);
@@ -237,6 +247,7 @@ BeatCrawler::~BeatCrawler()
 	delete worker;
 	delete fileList;
 	delete timer;
+	delete keywordsQueueTableTimer;
 	delete emailTableModel;
 
 	//fileReader->abort();
@@ -269,9 +280,63 @@ BeatCrawler::~BeatCrawler()
 
 }
 
+void BeatCrawler::receiverCurrentKeyword(QString keyword) {
+	QString keywrd = keyword;
+	ui->label_Current_Keyword->setText("Current Keyword: " + keywrd.replace("+", " "));
+	*currentKeyword_ = keywrd.replace("+", " ");
+}
 
-void BeatCrawler::receiverDataTest(QString s) {
-	qDebug() << "Main Thread XXXXXXX " << s;
+void BeatCrawler::receiverFinishHarvestResults(QString s) {
+	QString itemsFound;
+	if (s == "MULTI COMPLETED") {
+		qDebug() << "MULTI COMPLETEDt" << s;
+		ui->pushButton_Start->setText("Start");
+		//ui->pushButton_Start->setChecked(false);
+		// stops user from pressing start to many times in a row, which will lead to problems
+		ui->pushButton_Start->setEnabled(false);
+		QTimer::singleShot(4000, this, SLOT(reEnableStartButton()));
+
+		ui->lineEdit_keywords_search_box->setEnabled(true);
+		ui->pushButton_Save_Emails->setEnabled(true);
+		ui->pushButton_Load_Keyword_List->setEnabled(true);
+
+		ui->tabWidget_Harvester_Options->setEnabled(true);
+		ui->tableWidget_Proxy->setEnabled(true);
+		ui->lineEdit_Proxy_Host->setEnabled(true);
+		ui->lineEdit_Proxy_Port->setEnabled(true);
+		ui->pushButton_Add_Proxy->setEnabled(true);
+		ui->checkBox_Delete_Emails->setEnabled(true);
+		ui->checkBox_Delete_Keywords->setEnabled(true);
+
+		fileList->clear();
+		itemsFound = ui->label_Items_Found->text();
+		QMessageBox::information(this, "...", QString("Emails Harvested: ") + itemsFound);
+
+	}
+	if (s == "MULTI_SINGLE COMPLETED") {
+		qDebug() << "MULTI_SINGLE COMPLETED" << s;
+		ui->pushButton_Start->setText("Start");
+		//ui->pushButton_Start->setChecked(false);
+		// stops user from pressing start to many times in a row, which will lead to problems
+		ui->pushButton_Start->setEnabled(false);
+		QTimer::singleShot(4000, this, SLOT(reEnableStartButton()));
+
+		ui->lineEdit_keywords_search_box->setEnabled(true);
+		ui->pushButton_Save_Emails->setEnabled(true);
+		ui->pushButton_Load_Keyword_List->setEnabled(true);
+
+		ui->tabWidget_Harvester_Options->setEnabled(true);
+		ui->tableWidget_Proxy->setEnabled(true);
+		ui->lineEdit_Proxy_Host->setEnabled(true);
+		ui->lineEdit_Proxy_Port->setEnabled(true);
+		ui->pushButton_Add_Proxy->setEnabled(true);
+		ui->checkBox_Delete_Emails->setEnabled(true);
+		ui->checkBox_Delete_Keywords->setEnabled(true);
+
+		fileList->clear();
+		itemsFound = ui->label_Items_Found->text();
+		QMessageBox::information(this, "...", QString("Emails Harvested: ") + itemsFound);
+	}
 }
 
 void BeatCrawler::setProxyTable() {
@@ -337,6 +402,17 @@ void BeatCrawler::on_pushButton_Start_clicked(bool checked)
 			isEmailSelectOne = true;
 		}
 
+		// if multi url option, and keywordbox are both true, inform user. At this time Multi can only be used with
+		// a single keyword or list
+		if (ui->radioButton_Parse_Multi_URL->isChecked() && !ui->lineEdit_keywords_search_box->text().isEmpty()) {
+			QMessageBox::information(this, "...", "Multi Option can only be used with keyword list");
+
+			isMultiAndKeywordBoxSelected = false;
+		}
+		else {
+			isMultiAndKeywordBoxSelected = true;
+		}
+
 		//if we press start buttonand keyword searchb box and keyword list hasnt beeen choosen
 		if (ui->lineEdit_keywords_search_box->text().isEmpty() && fileList->isEmpty())
 		{
@@ -362,7 +438,7 @@ void BeatCrawler::on_pushButton_Start_clicked(bool checked)
 
 
 		if (isSocialNetworkSelectOne == true && isSearchEngineSelectOne == true && isKeywordsSelect == true
-			&& isEmailSelectOne == true)
+			&& isEmailSelectOne == true && isMultiAndKeywordBoxSelected == true)
 		{
 
 			ui->pushButton_Start->setText("Stop");
@@ -523,10 +599,10 @@ void BeatCrawler::on_pushButton_Start_clicked(bool checked)
 
 
 			// To avoid having two threads running simultaneously, the previous thread is aborted.
-			worker->abort();
+			//worker->abort();
 			// If the thread is not running, this will immediately return.
-			thread->wait();
-			worker->requestWork();
+			//thread->wait();
+			//worker->requestWork();
 
 
 			emit emitsenderStartThreadCounters("Start");
@@ -552,12 +628,12 @@ void BeatCrawler::on_pushButton_Start_clicked(bool checked)
 			receiverParameters();
 			// initialize email table -- checks to see if emails are in tabl
 			timer->start(5000);
-			
+
 			// stops user from pressing start to many times in a row, which will lead to problems
 			ui->pushButton_Start->setEnabled(false);
 			QTimer::singleShot(4000, this, SLOT(reEnableStartButton()));
+			//keywordsQueueTable();
 
-			
 
 		} //else important options are not checked so we set the start buttin to setChecked(false)
 		else
@@ -572,7 +648,7 @@ void BeatCrawler::on_pushButton_Start_clicked(bool checked)
 	if (!checked) {
 
 		//worker->abort();
-		thread->quit();
+		//thread->quit();
 		emit on_stop();
 		emit emitsenderStopThreadCounters("Stop");
 		ui->label_Curl_Status->setText("Status: ");
@@ -603,7 +679,7 @@ void BeatCrawler::on_pushButton_Start_clicked(bool checked)
 			ui->pushButton_Next_Email_Pagination->setEnabled(true);
 			ui->pushButton_Previous_Email_Pagination->setEnabled(true);
 		}
-		
+
 
 
 		// stops user from pressing start to many times in a row, which will lead to problems
@@ -804,7 +880,7 @@ void BeatCrawler::on_pushButton_Load_Keyword_List_clicked()
 			for (int col = 0; col < 2; col++)
 			{
 				if (col == 0) {
-					ui->tableWidget_Keywords_Queue->setItem(row, col, new QTableWidgetItem(fileList->at(row)));
+					ui->tableWidget_Keywords_Queue->setItem(row, col, new QTableWidgetItem(fileList->value(row)));
 
 				}
 
@@ -834,7 +910,7 @@ void BeatCrawler::recieverFinishReadingKeywordFile()
 	ui->checkBox_Delete_Keywords->setEnabled(true);
 	ui->pushButton_Start->setEnabled(true);
 
-	qDebug() << "Finished";
+
 }
 
 
@@ -939,9 +1015,9 @@ void BeatCrawler::receiverParameters()
 
 	// THREAD
 	if (!fileList->isEmpty()) {
-		*currentKeywordPtr = fileList->at(*fileListPtr); // on load is 0 which is the first index value
-														 //qDebug() <<"Current index " << *fileListPtr;
-														 //qDebug() << "current keyword " << *currentKeywordPtr;
+		*currentKeywordPtr = fileList->value(*fileListPtr); // on load is 0 which is the first index value
+															//qDebug() <<"Current index " << *fileListPtr;
+															//qDebug() << "current keyword " << *currentKeywordPtr;
 	}
 
 
@@ -2110,112 +2186,32 @@ void BeatCrawler::receiverParameters()
 	timerOptions.insert(1, ui->spinBox_Proxy_Rotate_Interval->value());
 
 
-	QFuture<void> multithread1 = QtConcurrent::run(&this->threadWorker
+
+	otherOptions.insert(0, ui->comboBox_search_results_amount->currentText());
+	// if url multi is true, and url multi amount is true
+	if (ui->radioButton_Parse_Multi_URL->isChecked() && !QString::number(ui->spinBox_Multi_URL_Amount->value()).isEmpty()) {
+		otherOptions.insert(1, "MULTI_URL_SELECTED");
+		otherOptions.insert(2, QString::number(ui->spinBox_Multi_URL_Amount->value()));
+
+	}
+	if (ui->radioButton_Parse_1_URL->isChecked()) {
+		otherOptions.insert(1, "1_URL_SELECTED");
+	}
+	//otherOptions.insert(2,)
+
+
+	//QThreadPool pool;
+	//pool.setExpiryTimeout(-1);
+	//QString keywordLabel = ui->lineEdit_keywords_search_box->text();
+	QFuture<void> multithread1  = QtConcurrent::run(&this->threadWorker
 		, &Worker::curlParams, vectorSearchOptions, ui->lineEdit_keywords_search_box->text(), proxyServers,
-		timerOptions, ui->comboBox_search_results_amount->currentText());
-
-	QFuture<void> multithread2 = QtConcurrent::run(&this->threadWorker
-		, &Worker::doWork1);
-
-
-
-
-
-
-	//qDebug() << *fileListPtr;
-	/****if timer is less or equal to search results combox box***/
-	if (QString::number(*keywordListNumPtrCounter) == ui->comboBox_search_results_amount->currentText())
-	{
-		if (!fileList->empty()) {
-			filterCurrentKeyword = *currentKeywordPtr;
-			filterCurrentKeyword = filterCurrentKeyword.replace("+", " ");
-
-			/***********
-			If we  have more elements in list, and if so move to the next item
-
-			-If current value dosent match the keyword
-			- If current value dosent match the last item
-			Then theres more elements in last
-			********/
-
-			// If Current value does not matches last item, theres more items
-			if (fileList->value(*fileListPtr) != fileList->last() && fileList->value(*fileListPtr) != fileList->last().isEmpty())
-			{
-				qDebug() << "More items in list";
-				(*fileListPtr) += 1;
-				*keywordListNumPtrCounter = 0;
-				keywordCompleted = true;
-
-			}
-
-
-			// Current value matches the last keyword
-			if (fileList->value(*fileListPtr) == fileList->last()) {
-
-				if (*fileListPtr > fileList->size()) {
-					*fileListPtr = 0;  // just in case the pointer goes beyond fileList size()
-				}
-				keywordCompleted = true;
-				*keywordListNumPtrCounter = 0;
-				thread->quit();
-				worker->abort();
-				ui->pushButton_Start->setText("Start");
-				ui->pushButton_Start->setChecked(false);
-				ui->lineEdit_keywords_search_box->setEnabled(true);
-				ui->pushButton_Save_Emails->setEnabled(true);
-				ui->pushButton_Load_Keyword_List->setEnabled(true);
-
-				ui->tabWidget_Harvester_Options->setEnabled(true);
-				ui->tableWidget_Proxy->setEnabled(true);
-				ui->lineEdit_Proxy_Host->setEnabled(true);
-				ui->lineEdit_Proxy_Port->setEnabled(true);
-				ui->pushButton_Add_Proxy->setEnabled(true);
-				ui->checkBox_Delete_Emails->setEnabled(true);
-				ui->checkBox_Delete_Keywords->setEnabled(true);
-
-				fileList->clear();
-				itemsFound = ui->label_Items_Found->text();
-				QMessageBox::information(this, "...", QString("Emails Harvested: ") + itemsFound);
-				*fileListPtr = 0;
-
-			}
-
-		}// end of checking if filelist is empty
-
-		if (fileList->isEmpty() && !ui->lineEdit_keywords_search_box->text().isEmpty())
-		{
-
-			*fileListPtr = 0;
-			thread->quit();
-			worker->abort();
-			ui->pushButton_Start->setText("Start");
-			ui->pushButton_Start->setChecked(false);
-			ui->lineEdit_keywords_search_box->setEnabled(true);
-			ui->pushButton_Save_Emails->setEnabled(true);
-			ui->pushButton_Load_Keyword_List->setEnabled(true);
-
-			ui->tabWidget_Harvester_Options->setEnabled(true);
-			ui->tableWidget_Proxy->setEnabled(true);
-			ui->lineEdit_Proxy_Host->setEnabled(true);
-			ui->lineEdit_Proxy_Port->setEnabled(true);
-			ui->pushButton_Add_Proxy->setEnabled(true);
-			ui->checkBox_Delete_Emails->setEnabled(true);
-			ui->checkBox_Delete_Keywords->setEnabled(true);
-
-			itemsFound = ui->label_Items_Found->text();
-			QMessageBox::information(this, "...", QString("Emails Harvested: ") + itemsFound);
-
-
-		}
-
-	}// end of checking if counter matched combo box
-
+		timerOptions, otherOptions);
 
 
 }
 
 void BeatCrawler::populateEmailTable() {
-	  
+
 
 	setEmailList = emailList->toSet().toList();
 
@@ -2235,7 +2231,7 @@ void BeatCrawler::populateEmailTable() {
 				//ui->tableView_Emails->resizeRowsToContents();
 			}
 
-			
+
 
 			timer->stop();
 		}
@@ -2254,11 +2250,11 @@ void BeatCrawler::receiverEmailList2(QString list)
 }
 
 void BeatCrawler::receiverEmailList(QString list)
-{  
+{
 
 	QString emailsToLowerCase;
 	*emailList << list;
-	
+
 	// items found on bottom status bar
 	ui->label_Items_Found->setText("Items Found: " + QString::number(emailList->size()));
 }
@@ -2279,66 +2275,66 @@ void BeatCrawler::on_pushButton_Next_Email_Pagination_clicked()
 
 
 
-	    if (!emailList->isEmpty()) {
-			emailTableModel->clear();
+	if (!emailList->isEmpty()) {
+		emailTableModel->clear();
 
-			(*nextEmailPaginationPtr) += 8;
-			if (*nextEmailPaginationPtr >= 16)
-			{
-				(*previousEmailPaginationPtr) += 8;
-			}
-
-			for (int row = (*previousEmailPaginationPtr); row < (*nextEmailPaginationPtr); ++row)
-			{
-
-				for (int column = 0; column < 1; ++column) {
-					
-
-					if (row <= emailList->size()) {
-					}
-					else {
-						//ui->pushButton_Previous_Email_Pagination->setEnabled(true);
-
-					}
-
-					/*******as long as the email list size is greater than the previousPages*****/
-
-					//|| (*nextEmailPaginationPtr) >= emailList->size()
-					if (row >= emailList->size()) {
-						ui->pushButton_Next_Email_Pagination->setEnabled(false);
-
-					}
-					else {
-
-						QStandardItem *item = new QStandardItem(emailList->at(row));
-						emailTableModel->setItem(row, column, item);
-
-						if (row >= emailList->size())
-						{
-							delete item;
-						}
-					}
-
-				}
-			}
-
-
-			for (int i = 0; i<emailTableModel->rowCount(); i++)
-			{
-				if (emailTableModel->item(i) == NULL) {
-					// should we delete an null item like--> delete emailTableModel->item(i);
-					ui->tableView_Emails->hideRow(i);
-					///delete emailTableModel->item(i);
-
-				}
-			}
-
+		(*nextEmailPaginationPtr) += 8;
+		if (*nextEmailPaginationPtr >= 16)
+		{
+			(*previousEmailPaginationPtr) += 8;
 		}
-	
+
+		for (int row = (*previousEmailPaginationPtr); row < (*nextEmailPaginationPtr); ++row)
+		{
+
+			for (int column = 0; column < 1; ++column) {
+
+
+				if (row <= emailList->size()) {
+				}
+				else {
+					//ui->pushButton_Previous_Email_Pagination->setEnabled(true);
+
+				}
+
+				/*******as long as the email list size is greater than the previousPages*****/
+
+				//|| (*nextEmailPaginationPtr) >= emailList->size()
+				if (row >= emailList->size()) {
+					ui->pushButton_Next_Email_Pagination->setEnabled(false);
+
+				}
+				else {
+
+					QStandardItem *item = new QStandardItem(emailList->value(row));
+					emailTableModel->setItem(row, column, item);
+
+					if (row >= emailList->size())
+					{
+						delete item;
+					}
+				}
+
+			}
+		}
+
+
+		for (int i = 0; i<emailTableModel->rowCount(); i++)
+		{
+			if (emailTableModel->item(i) == NULL) {
+				// should we delete an null item like--> delete emailTableModel->item(i);
+				ui->tableView_Emails->hideRow(i);
+				///delete emailTableModel->item(i);
+
+			}
+		}
+
+	}
+
 
 	ui->tableView_Emails->resizeColumnsToContents();
-	
-	
+
+
 
 	//qDebug() << "NEXT " << *nextEmailPaginationPtr;
 	//qDebug() << "PREVIOUS" << *previousEmailPaginationPtr;
@@ -2373,7 +2369,7 @@ void BeatCrawler::on_pushButton_Previous_Email_Pagination_clicked()
 				/*******as long as the email list size is greater than the previousPages*****/
 				if (row >= 0) {
 					//ui->pushButton_Previous_Email_Pagination->setEnabled(false);
-					QStandardItem *item = new QStandardItem(emailList->at(row));
+					QStandardItem *item = new QStandardItem(emailList->value(row));
 					emailTableModel->setItem(row, column, item);
 
 					if (row >= emailList->size())
@@ -2381,7 +2377,7 @@ void BeatCrawler::on_pushButton_Previous_Email_Pagination_clicked()
 						delete item;
 					}
 				}
-				
+
 
 			}
 		}
@@ -2442,102 +2438,118 @@ void BeatCrawler::recieverProxyTableSelection(const QItemSelection &selected, co
 
 
 
-void BeatCrawler::recieverKeywordsQueue() {
-	QString filterCurrentKeyword;
-	filterCurrentKeyword = currentKeywordPtr->replace("+", " ");
+void BeatCrawler::keywordsQueueTable() {
+	for (;;) {
 
-
-
-
-	for (int row = 0; row < fileList->size(); row++)
-	{
-		for (int col = 0; col < 2; col++)
+		for (int row = 0; row < fileList->size(); row++)
 		{
-
-			// if current keyword matches this item, change set item string to "Currently Processing"
-			// if keyword is 1/done change it to "Complete"
-			// if keyword is 0 /not dont change it to "Waiting.."
-
-			if (col == 0)
+			for (int col = 0; col < 2; col++)
 			{
 
-				keywordQueueItem = new QTableWidgetItem();
-				keywordQueueItem->setFlags(keywordQueueItem->flags() ^ Qt::ItemIsEditable);
-				keywordQueueItem->setText(fileList->at(row));
-
-				ui->tableWidget_Keywords_Queue->setItem(row, col, keywordQueueItem);
-			}
+				// if current keyword matches this item, change set item string to "Currently Processing"
+				// if keyword is 1/done change it to "Complete"
+				// if keyword is 0 /not dont change it to "Waiting.."
 
 
-
-			if (col == 1)
-			{
-				// qDebug() << *currentKeywordPtr;
-				// if current keyword matches a keyword in our row change it to "Processing"
-				// else change it to "Waiting"
-				if (filterCurrentKeyword == fileList->at(row))
+				QEventLoop loop;
+				QTimer::singleShot(3000, &loop, SLOT(quit()));
+				loop.exec();
+				if (col == 0)
 				{
-
-
-					//ui->tableWidget_Keywords_Queue->setItem(row, col, new QTableWidgetItem("Processing..."));
-					// ui->tableWidget_Keywords_Queue->item(row,col)->setBackground(QBrush(QColor(250,0,0)));
-
-					if (clickedStartStopButton == false) {
-
-						keywordQueueItem = new QTableWidgetItem();
-						keywordQueueItem->setFlags(keywordQueueItem->flags() ^ Qt::ItemIsEditable);
-						keywordQueueItem->setText("Aborted");
-
-						ui->tableWidget_Keywords_Queue->setItem(row, col, keywordQueueItem);
-
-					}
-					else if (clickedStartStopButton == true) {
-
-
-						keywordQueueItem = new QTableWidgetItem();
-						keywordQueueItem->setFlags(keywordQueueItem->flags() ^ Qt::ItemIsEditable);
-						keywordQueueItem->setText("Waiting...");
-
-						ui->tableWidget_Keywords_Queue->setItem(row, col, keywordQueueItem);
-
-					}
-				}
-
-
-				// if keyword is done
-				if (filterCurrentKeyword == fileList->at(row))
-				{
-
-					qDebug() << "Completed";
-					keywordQueueItem = new QTableWidgetItem();
-					keywordQueueItem->setFlags(keywordQueueItem->flags() ^ Qt::ItemIsEditable);
-					keywordQueueItem->setText("Processing");
-
-					//Possible erros because of minus of row which might be 0-1??
-					ui->tableWidget_Keywords_Queue->setItem((row - 1), col, keywordQueueItem);
-				}
-				else {
 
 					keywordQueueItem = new QTableWidgetItem();
 					keywordQueueItem->setFlags(keywordQueueItem->flags() ^ Qt::ItemIsEditable);
-					keywordQueueItem->setText("Waiting...");
+					keywordQueueItem->setText(fileList->value(row));
 
 					ui->tableWidget_Keywords_Queue->setItem(row, col, keywordQueueItem);
 				}
 
+				if (col == 1)
+				{
+					// qDebug() << *currentKeywordPtr;
+					// if current keyword matches a keyword in our row change it to "Processing"
+					// else change it to "Waiting"
+					if (*currentKeyword_ == fileList->value(row))
+					{
+
+						//ui->tableWidget_Keywords_Queue->setItem(row, col, new QTableWidgetItem("Processing..."));
+						// ui->tableWidget_Keywords_Queue->item(row,col)->setBackground(QBrush(QColor(250,0,0)));
+
+						if (clickedStartStopButton == false) {
+
+							keywordQueueItem = new QTableWidgetItem();
+							keywordQueueItem->setFlags(keywordQueueItem->flags() ^ Qt::ItemIsEditable);
+							//keywordQueueItem->setText("Aborted");
+
+							//ui->tableWidget_Keywords_Queue->setItem(row, col, keywordQueueItem);
+
+						}
+						else if (clickedStartStopButton == true) {
+
+
+							keywordQueueItem = new QTableWidgetItem();
+							keywordQueueItem->setFlags(keywordQueueItem->flags() ^ Qt::ItemIsEditable);
+							//keywordQueueItem->setText("Waiting...");
+
+							//ui->tableWidget_Keywords_Queue->setItem(row, col, keywordQueueItem);
+
+						}
+					}
+
+
+					// if keyword is done
+					if (*currentKeyword_ != fileList->value(row))
+					{
+
+						//keywordQueueItem = new QTableWidgetItem();
+						//keywordQueueItem->setFlags(keywordQueueItem->flags() ^ Qt::ItemIsEditable);
+						//->setText("Processing");
+
+						//Possible erros because of minus of row which might be 0-1??
+						//ui->tableWidget_Keywords_Queue->setItem((row - 1), col, keywordQueueItem);
+					}
+					else {
+
+						//keywordQueueItem = new QTableWidgetItem();
+						//keywordQueueItem->setFlags(keywordQueueItem->flags() ^ Qt::ItemIsEditable);
+						//keywordQueueItem->setText("Waiting...");
+
+						//ui->tableWidget_Keywords_Queue->setItem(row, col, keywordQueueItem);
+					}
+
+					if (*currentKeyword_ == fileList->at(row)) {
+						qDebug() << "matches";
+						qDebug() << "MATCH & ROW-->" << row;
+						int completedKeywordIndex = row - 1;
+						//if (fileList->value(completedKeywordIndex) != *currentKeyword_) {
+						// completed
+						for (int j = 0; j <= completedKeywordIndex; j++) {
+							keywordQueueItem = new QTableWidgetItem();
+							keywordQueueItem->setFlags(keywordQueueItem->flags() ^ Qt::ItemIsEditable);
+							keywordQueueItem->setText("Completed");
+							qDebug() << "PAST ROWS-->" << j;
+
+							ui->tableWidget_Keywords_Queue->setItem(j, col, keywordQueueItem);
+
+						}
+
+						//}
+					}
+
+				}
 
 
 			}
 
-
+			// if i is equal to or greater than the keywordKey size, delete pointer because were done with it
+			if (row >= fileList->size())
+			{
+				qDebug() << "LARGER than SIZE";
+				delete keywordQueueItem;
+			}
 		}// end of for inner loop
 
-		 // if i is equal to or greater than the keywordKey size, delete pointer because were done with it
-		if (row >= fileList->size())
-		{
-			qDebug() << "LARGER than SIZE";
-			delete keywordQueueItem;
-		}
+
 	} // end of for outer loop
 
 
@@ -2581,14 +2593,14 @@ void BeatCrawler::deleteKeyordsListTable() {
 
 void BeatCrawler::deleteEmailsListTable()
 {
-	
-		// clear email qtlist
-		emailList->clear();
-		// clear email qt set
-		setEmailList.clear();
-		// clear email table model
-		emailTableModel->clear();
-		emit emitRemoveThreadEmailList();
+
+	// clear email qtlist
+	emailList->clear();
+	// clear email qt set
+	setEmailList.clear();
+	// clear email table model
+	emailTableModel->clear();
+	emit emitRemoveThreadEmailList();
 
 }
 
@@ -2599,7 +2611,7 @@ void BeatCrawler::receiverEnableDeleteEmailCheckBox()
 	ui->pushButton_Start->setEnabled(true);
 
 	// initialize email table -- checks to see if emails are in tabl
-	
+
 
 	ui->pushButton_Next_Email_Pagination->setEnabled(false);
 	ui->pushButton_Previous_Email_Pagination->setEnabled(false);
@@ -2608,7 +2620,7 @@ void BeatCrawler::receiverEnableDeleteEmailCheckBox()
 
 
 // received signal from thread to enable widgets after filelist/keywords have been successfuly deleted
-void BeatCrawler::receiverEnableDeleteKeywordCheckBox() 
+void BeatCrawler::receiverEnableDeleteKeywordCheckBox()
 {
 	ui->checkBox_Delete_Keywords->setEnabled(true);
 	ui->pushButton_Load_Keyword_List->setEnabled(true);
@@ -2626,15 +2638,18 @@ void BeatCrawler::recieverCurlResponseInfo(QString info)
 
 		ui->label_Curl_Status->setText("Status: Proxy failed, or Server is Temporarily Unavailable");
 		//QTimer::singleShot(10,this,SLOT(deleteEmailsListTable()));
-		//emailList->clear();
+		emailList->clear();
+		setEmailList.clear();
+		emailTableModel->clear();
 		ui->label_Items_Found->setText("Items Found: ");
-		qDebug() << "Proxy or 503 Error";
-		
+		ui->tableView_Emails->resizeRowsToContents();
+		emit emitRemoveThreadEmailList();
+		//qDebug() << "Proxy or 503 Error";
+
 	}
 	else if (info == "Request Succeded")
 	{
 		ui->label_Curl_Status->setText("Status: Successfully Crawling");
-
 	}
 }
 
@@ -2661,7 +2676,7 @@ void BeatCrawler::on_pushButton_Add_Proxy_clicked()
 	for (int row = 0; row < proxyServers->size(); row++)
 	{
 
-		QString url = "http://" + proxyServers->at(row);
+		QString url = "http://" + proxyServers->value(row);
 		QUrl server(url);
 
 		// validates proxy host
@@ -2796,23 +2811,23 @@ void BeatCrawler::on_checkBox_Delete_Emails_clicked()
 	if (ui->checkBox_Delete_Emails->isChecked())
 	{
 		if (!emailList->isEmpty() && !setEmailList.isEmpty()) {
-			  
-			  ui->checkBox_Delete_Emails->setEnabled(false);
-			  ui->pushButton_Start->setEnabled(false);
-			  ui->pushButton_Load_Keyword_List->setEnabled(false);
+
+			ui->checkBox_Delete_Emails->setEnabled(false);
+			ui->pushButton_Start->setEnabled(false);
+			ui->pushButton_Load_Keyword_List->setEnabled(false);
 
 
-			  ui->pushButton_Next_Email_Pagination->setEnabled(false);
-			  ui->pushButton_Previous_Email_Pagination->setEnabled(false);
-			  nextEmailPaginationPtr = &nextEmailPagination;
-			  previousEmailPaginationPtr = &previousEmailPagination;
-			  
+			ui->pushButton_Next_Email_Pagination->setEnabled(false);
+			ui->pushButton_Previous_Email_Pagination->setEnabled(false);
+			nextEmailPaginationPtr = &nextEmailPagination;
+			previousEmailPaginationPtr = &previousEmailPagination;
 
-			  QTimer::singleShot(10, this, SLOT(deleteEmailsListTable()));
-			  ui->label_Items_Found->setText("Items Found: ");
-			  
+
+			QTimer::singleShot(10, this, SLOT(deleteEmailsListTable()));
+			ui->label_Items_Found->setText("Items Found: ");
+
 		}
-		
+
 	}
 }
 
@@ -2839,7 +2854,7 @@ void BeatCrawler::on_pushButton_Save_Emails_clicked()
 
 		for (int i = 0; i < emailList->size(); i++)
 		{
-			savedEmails = emailList->at(i);
+			savedEmails = emailList->value(i);
 			savedEmailsList << savedEmails.split(QRegExp("[\r\n]"), QString::SkipEmptyParts);
 			qDebug() << savedEmailsList.value(i);
 			outStream << savedEmailsList.value(i) << "\n";

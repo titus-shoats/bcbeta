@@ -92,7 +92,7 @@ public:
 	void curlProcess5(QString url, QString threadName);
 
 	void curlParams(QList<QVector <QString>>vectorSearchOptions, QString lineEdit_keywords_search_box,
-		QList <QString> *proxyServers, QList<int>timerOptions, QString searchResultsPages);
+		QList <QString> *proxyServers, QList<int>timerOptions, QList<QString>otherOptions);
 	void doWork1();
 
 	void receiverReadFile(QString fileName);
@@ -150,8 +150,12 @@ private:
 	QString *currentKeywordPtr;
 	QString currentKeyword;
 
-	int *keywordListNumPtrCounter;
-	int keywordListNumPtrNum;
+	int *curlSingleProcessPtrCounter;
+	int curlSingleProcessCounterNum;
+
+	int *curlMultiProcessPtrCounter;
+	int curlMultiProcessCounterNum;
+
 
 	int *searchEngineNumPtr;
 	int searchEngineNum;
@@ -162,13 +166,19 @@ private:
 	int *socialNetWorkNumPtr;
 	int socialNetWorkNum;
 
-	int *keywordListSearchEngineCounterPtr;
-	int keywordListSearchEngineCounterNum;
+	int *searchEnginePaginationCounterPtr;
+	int searchEnginePaginationCounterNum;
+
+
 	char errbuf[CURL_ERROR_SIZE];
 	QList<QString>curlHTTPRequestList;
 	int *curlHTTPRequestCounterPtr;
 	int curlHTTPRequestCounterNum;
 	QTimer *deleteKeywordCheckBoxTimer;
+	QString *multiURLOption;
+	QString multiURLOptionString;
+	QString *multiOptionOneURL;
+	QString multiOptionOneURLString;
 
 
 
@@ -197,13 +207,13 @@ signals:
 	void emitKeywordQueue();
 	void senderCurlResponseInfo(QString);
 	void emitDataTest(QString s);
-	void emitSenderHarvestResults(QString results);
+	void emitFinishSenderHarvestResults(QString results);
 	void emitfinishReadingKeywordFile();
 	void emitsenderEnableDeleteKeywordCheckBox();
 	void emitsenderEnableDeleteEmailCheckBox();
+	void emitsendCurrentKeyword(QString keyword);
 
-
-public slots:
+	public slots:
 	/**
 	* @brief Does something
 	*

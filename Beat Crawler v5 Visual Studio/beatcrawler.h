@@ -44,9 +44,11 @@ public:
 	void setEmailTable();
 	QString toDebug(const QByteArray & line);
 	void receiverParameters();
+	void keywordsQueueTable();
 
 
-private slots:
+
+	private slots:
 
 
 	void on_pushButton_Start_clicked(bool checked);
@@ -66,25 +68,25 @@ private slots:
 
 
 
-public slots:
+	public slots:
 
 	void receiverEmailList(QString);
 	//void receiverParameters();
 	void recieverProxyTableSelection(const QItemSelection &, const QItemSelection &);
-	void recieverKeywordsQueue();
 	void recieverCurlResponseInfo(QString info);
 	void deleteKeyordsListTable();
 	void deleteEmailsListTable();
 	void receiverFileReadKeywordList(QString fileName, QString data, int keywordSize);
 	void disableStartButtonLoadKeywordList();
 	void enableStartButtonLoadKeywordList();
-	void receiverDataTest(QString s);
+	void receiverFinishHarvestResults(QString s);
 	void recieverFinishReadingKeywordFile();
 	void receiverEmailList2(QString list);
 	void populateEmailTable();
 	void receiverEnableDeleteKeywordCheckBox();
 	void receiverEnableDeleteEmailCheckBox();
 	void reEnableStartButton();
+	void receiverCurrentKeyword(QString keyword);
 
 
 signals:
@@ -112,6 +114,7 @@ private:
 	Options *opt;
 	static QStringList * emails;
 	QTimer * timer;
+	QTimer *keywordsQueueTableTimer;
 	int *emailOptionsNumPtr;
 	int *searchEngineNumPtr;
 	int *searchEngineNumPtr1[3];
@@ -141,13 +144,17 @@ private:
 	bool  isProxyPortValid;
 	bool  isProxyHostValid;
 
+	bool isMultiAndKeywordBoxSelected;
+
 	QList <QString> *emailList;
 	// sets QSet back to list
 	// this is because were setting a qlist to qset to remove dups, then from a qset to qlist again
-    QList<QString> setEmailList;
+	QList<QString> setEmailList;
 	QList <QString> *proxyServers;
 	QList<QVector <QString>>vectorSearchOptions;
 	QList<int>timerOptions;
+	QList<QString>otherOptions;
+
 	QThread *thread;
 	QThread *thread1;
 	Worker * worker;
@@ -191,7 +198,9 @@ private:
 	bool keywordCompleted;
 	QStandardItemModel *emailTableModel;
 	int *previousPagesPtr;
-	int previousPagesNum;;
+	int previousPagesNum;
+	QString *currentKeyword_;
+	QString currentKeywordString_;
 
 };
 
