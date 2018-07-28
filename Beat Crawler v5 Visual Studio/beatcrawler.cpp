@@ -82,6 +82,10 @@ BeatCrawler::BeatCrawler(QWidget *parent) :
 
 	//connect(keywordsQueueTableTimer, SIGNAL(timeout()), this, SLOT(keywordsQueueTable()));
 
+	connect(ui->tableWidget_Proxy->selectionModel(),
+		SIGNAL(selectionChanged(const QItemSelection &, const QItemSelection &)), this,
+		SLOT(recieverProxyTableSelection(const QItemSelection &, const QItemSelection &)));
+
 	connect(this, &BeatCrawler::on_stop, &threadWorker, &Worker::stop);
 
 
@@ -124,9 +128,9 @@ BeatCrawler::BeatCrawler(QWidget *parent) :
 	ui->tableWidget_Proxy->setSelectionBehavior(QAbstractItemView::SelectRows);
 
 	QStringList keywordQueueTableHeaders;
-	keywordQueueTableHeaders << "Keywords" << "Status";
+	keywordQueueTableHeaders << "Keywords";
 	ui->tableWidget_Keywords_Queue->setRowCount(40000);
-	ui->tableWidget_Keywords_Queue->setColumnCount(2);
+	ui->tableWidget_Keywords_Queue->setColumnCount(1);
 	ui->tableWidget_Keywords_Queue->setHorizontalHeaderLabels(keywordQueueTableHeaders);
 	ui->tableWidget_Keywords_Queue->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
 	ui->tableWidget_Keywords_Queue->resizeRowsToContents();
@@ -460,7 +464,7 @@ void BeatCrawler::on_pushButton_Start_clicked(bool checked)
 
 			}
 			// clears emails queue table if any emails were in it
-			keywordQueueTableHeaders << "Keywords" << "Status";
+			keywordQueueTableHeaders << "Keywords";
 			ui->tableWidget_Keywords_Queue->setHorizontalHeaderLabels(keywordQueueTableHeaders);
 
 
@@ -886,16 +890,14 @@ void BeatCrawler::on_pushButton_Load_Keyword_List_clicked()
 
 		for (int row = 0; row < fileList->size(); row++)
 		{
-			for (int col = 0; col < 2; col++)
+			for (int col = 0; col < 1; col++)
 			{
 				if (col == 0) {
 					ui->tableWidget_Keywords_Queue->setItem(row, col, new QTableWidgetItem(fileList->value(row)));
 
 				}
 
-				if (col == 1) {
-					ui->tableWidget_Keywords_Queue->setItem(row, col, new QTableWidgetItem(""));
-				}
+				
 			}
 
 		}// end for loop

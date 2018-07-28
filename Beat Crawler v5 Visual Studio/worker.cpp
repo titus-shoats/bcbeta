@@ -282,50 +282,61 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 		}
 
 
-		/******************************************************
 
-		PROXY CONFIGURATION
+		//PROXY CONFIGURATION
+
+		if (proxyServers->isEmpty())
+		{
+
+			isProxyEmpty = true;
+		}
+
+		if (!proxyServers->isEmpty())
+		{
+			isProxyEmpty = false;
+
+		}
 
 		// if workerCounter == *proxyRotateIntervalPtr, reset workerCounter ; if certain number of
 		// http request have been made rotate proxy
 		if (*workerCounterPtr <= proxyRotateInterval)
 		{
 		// only rotate each proxy if proxyCounterPtr is not greater than our proxyServer qlist
-		if ((*proxyServerCounterPtr) <= proxyServers->size())
-		{
-		// if proxy counter is not greater than proxyServer qlist, proxyCounter can increment
-		canProxyCounterIncrement = true;
-		}
+				if ((*proxyServerCounterPtr) <= proxyServers->size())
+				{
+					// if proxy counter is not greater than proxyServer qlist, proxyCounter can increment
+					canProxyCounterIncrement = true;
+				}
 
-		// if proxy counter is equal to the size of proxyServer qlist, we cant increment
-		if ((*proxyServerCounterPtr) == proxyServers->size())
-		{
-		canProxyCounterIncrement = false;
-		// if proxyServerCounter is equal to the size of the proxyServer qlist, reset it to 0
-		*proxyServerCounterPtr = 0;
-		}
+				// if proxy counter is equal to the size of proxyServer qlist, we cant increment
+				if ((*proxyServerCounterPtr) == proxyServers->size())
+				{
+					canProxyCounterIncrement = false;
+					// if proxyServerCounter is equal to the size of the proxyServer qlist, reset it to 0
+					*proxyServerCounterPtr = 0;
+				}
 
 
-		// if proxies contained in qlist empty in main thread, if so clear the proxylist in this thread also
-		if (isProxyEmpty == true && proxyServers->size() == 0)
-		{
-		//qDebug() << "Proxy Empty";
-		//qDebug() << *proxyServers;
-		//qDebug() <<proxyServers->size();
-		proxyServers->clear();
-		*proxies = "";
-		}
+				// if proxies contained in qlist empty in main thread, if so clear the proxylist in this thread also
+				if (isProxyEmpty == true && proxyServers->size() == 0)
+				{
+					//qDebug() << "Proxy Empty";
+					//qDebug() << *proxyServers;
+					//qDebug() <<proxyServers->size();
+					proxyServers->clear();
+					*proxies = "";
+				}
 
-		// if proxies contained in qlist are not empty, and we can keep incrementing,
-		// our proxies are good to use/rotate
-		if (isProxyEmpty == false && canProxyCounterIncrement == true)
-		{
-		*proxies = proxyServers->value(*proxyServerCounterPtr);
-		//qDebug() << "Counter-->" << *proxies;
+				// if proxies contained in qlist are not empty, and we can keep incrementing,
+				// our proxies are good to use/rotate
+				if (isProxyEmpty == false && canProxyCounterIncrement == true)
+				{
+					*proxies = proxyServers->value(*proxyServerCounterPtr);
+					//qDebug() << "Counter-->" << *proxies;
 
-		}
-		//qDebug() << "Counter-->" << *proxyServerCounterPtr;
-		//qDebug() << "Proxies-->" << *proxies;
+				}
+				//qDebug() << "Counter-->" << *proxyServerCounterPtr;
+				//qDebug() << "Proxies-->" << *proxies;
 
 		}
 
@@ -333,10 +344,10 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 		// if workerCounter is greater than *proxyRotateIntervalPtr/ amount of http request before proxy rotates
 		if (*workerCounterPtr >= proxyRotateInterval)
 		{
-		// restart workerCounter
-		*workerCounterPtr = 0;
-		// increment proxyServerPtr to go through each proxyServer index every interval
-		(*proxyServerCounterPtr) += 1;
+			// restart workerCounter
+			*workerCounterPtr = 0;
+			// increment proxyServerPtr to go through each proxyServer index every interval
+			(*proxyServerCounterPtr) += 1;
 
 		}
 
@@ -344,14 +355,8 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 		(*workerCounterPtr) += 1;
 
 
-		if (!proxyServers->isEmpty())
-		{
-
-		//qDebug() << *proxies;
-		}
 
 
-		*******************************************************/
 
 		if (!fileList->isEmpty())
 		{
@@ -970,8 +975,6 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 				}
 
 			}// end of checking if fileList is empty
-
-
 		}
 
 		/**********
@@ -1089,6 +1092,15 @@ void Worker::curlProcess1(const char *urls[], QString threadName)
 			curl_easy_setopt(eh, CURLOPT_URL, urls[j]);
 			curl_easy_setopt(eh, CURLOPT_PRIVATE, urls[j]);
 			curl_easy_setopt(eh, CURLOPT_VERBOSE, 0L);
+			if (!proxies->isEmpty()) 
+			{
+				std::string proxy = proxies->toStdString();
+				curl_easy_setopt(eh, CURLOPT_PROXY, proxy.c_str());
+			}
+			else 
+			{
+				curl_easy_setopt(eh, CURLOPT_PROXY, NULL);
+			}
 			curl_easy_setopt(eh, CURLOPT_WRITEFUNCTION, curl_write1);
 			curl_easy_setopt(eh, CURLOPT_WRITEDATA, this);
 			curl_easy_setopt(eh, CURLOPT_FOLLOWLOCATION, 1L); // Tells libcurl to follow HTTP 3xx redirects
@@ -1129,36 +1141,158 @@ void Worker::curlProcess1(const char *urls[], QString threadName)
 			char* effectiveURL;
 			return_code = msg->data.result;
 
+
+			curl_easy_getinfo(eh, CURLINFO_EFFECTIVE_URL, &effectiveURL);
+			curl_easy_getinfo(eh, CURLINFO_RESPONSE_CODE, &http_status_code);
+			curl_easy_getinfo(eh, CURLINFO_PRIVATE, &szUrl);
 			if (return_code != CURLE_OK) {
 				qDebug() << msg->data.result;
 
-				switch (return_code)
+
+				QUrl url(effectiveURL);
+
+				if (http_status_code == 200)
 				{
-				case 5: qDebug() << threadName << " Curl code-> " << return_code << " Message->" << errbuf
-					<< "URL-> " << effectiveURL;
-					break;
-				case 7: qDebug() << threadName << " Curl code-> " << return_code << " Message->" << errbuf
-					<< "URL-> " << effectiveURL;;
-					break;
+					//qDebug() << "200 OK";
+					//qDebug() << "RESULT-->" << msg->data.result;
+					//qDebug() << "URL-->" << szUrl;
 
-				case 28: qDebug() << threadName << " Curl code-> " << return_code << " Message->" << errbuf
-					<< "URL-> " << effectiveURL;;
-					break;
+					if (!proxies->isEmpty())
+					{
+						logHarvesterStatus.prepend("HTTP Request Succeded. URL: " + QString(url.host()) + QString(url.path()) + " Proxy: " + *proxies);
 
-				case 35: qDebug() << threadName << " Curl code-> " << return_code << " Message->" << errbuf
-					<< "URL-> " << effectiveURL;;
-					break;
-				case 56: qDebug() << threadName << " Curl code-> " << return_code << " Message->" << errbuf
-					<< "URL-> " << effectiveURL;;
-					break;
+					}
+					else
+					{
+						logHarvesterStatus.prepend("HTTP Request Succeded. URL: " + QString(url.host()) + QString(url.path()));
 
-				
-
-
-				default: qDebug() << threadName << " Default Switch Statement Curl Code--> " << return_code
-					<< "URL-> " << effectiveURL;;
-
+					}
+					emit senderCurlResponseInfo("Request Succeded");
+					qDebug() << "HTTP  Code--> " << http_status_code << " " << threadName
+						<< " - URL-> " << effectiveURL << "\n";
 				}
+
+				if (http_status_code == 503)
+				{
+
+					if (!proxies->isEmpty())
+					{
+						logHarvesterStatus.prepend("Proxy Server or IP Address is temporarily blocked. URL: " + QString(url.host()) + QString(url.path()) + " Proxy: " + *proxies);
+
+					}
+					else
+					{
+						logHarvesterStatus.prepend("Proxy Server or IP Address is temporarily blocked. URL: " + QString(url.host()) + QString(url.path()));
+
+					}
+					qDebug() << "503 ERROR CODE " << threadName << "URL-> " << effectiveURL;
+					emit senderCurlResponseInfo("503");
+				}
+
+				if (return_code != CURLE_OK) {
+
+
+
+					switch (return_code)
+					{
+					case 5: qDebug() << threadName << " Curl code-> " << return_code << " Message->" << errbuf
+						<< "URL-> " << effectiveURL;
+
+						if (!proxies->isEmpty())
+						{
+							logHarvesterStatus.prepend("Proxy could not be resolved. URL: " + QString(url.host()) + QString(url.path()) + " Proxy: " + *proxies);
+
+						}
+						else
+						{
+							logHarvesterStatus.prepend("Proxy could not be resolved. URL: " + QString(url.host()) + QString(url.path()));
+
+						}
+						emit senderCurlResponseInfo("Proxy Error");
+
+						break;
+					case 7: qDebug() << threadName << " Curl code-> " << return_code << " Message->" << errbuf
+						<< "URL-> " << effectiveURL;
+
+						if (!proxies->isEmpty())
+						{
+							logHarvesterStatus.prepend("Could not connect to proxy or host. URL: " + QString(url.host()) + QString(url.path()) + " Proxy: " + *proxies);
+
+						}
+						else
+						{
+							logHarvesterStatus.prepend("Could not connect to proxy or host. URL: " + QString(url.host()) + QString(url.path()));
+
+						}
+
+						emit senderCurlResponseInfo("Proxy Error");
+						break;
+
+					case 28: qDebug() << threadName << " Curl code-> " << return_code << " Message->" << errbuf
+						<< "URL-> " << effectiveURL;
+
+						if (!proxies->isEmpty())
+						{
+							logHarvesterStatus.prepend("The server has temporarily blocked your Proxy or IP Address. URL: " + QString(url.host()) + QString(url.path()) + " Proxy: " + *proxies);
+
+						}
+						else
+						{
+							logHarvesterStatus.prepend("The server has temporarily blocked your Proxy or IP Address. URL: " + QString(url.host()) + QString(url.path()));
+
+						}
+
+						break;
+
+					case 35: qDebug() << threadName << " Curl code-> " << return_code << " Message->" << errbuf
+						<< "URL-> " << effectiveURL;
+
+
+						if (!proxies->isEmpty())
+						{
+							logHarvesterStatus.prepend("The server has temporarily blocked your Proxy or IP Address. URL: " + QString(url.host()) + QString(url.path()) + " Proxy: " + *proxies);
+
+						}
+						else
+						{
+							logHarvesterStatus.prepend("The server has temporarily blocked your Proxy or IP Address. URL: " + QString(url.host()) + QString(url.path()));
+
+						}
+
+						emit senderCurlResponseInfo("Proxy Error");
+
+						break;
+					case 56: qDebug() << threadName << " Curl code-> " << return_code << " Message->" << errbuf
+						<< "URL-> " << effectiveURL;
+
+						if (!proxies->isEmpty())
+						{
+							logHarvesterStatus.prepend("Failure receiving network data. URL: " + QString(url.host()) + QString(url.path()) + " Proxy: " + *proxies);
+
+						}
+						else
+						{
+							logHarvesterStatus.prepend("Failure receiving network data. URL: " + QString(url.host()) + QString(url.path()));
+
+						}
+
+						break;
+
+
+					default: qDebug() << threadName << " Default Switch Statement Curl Code--> " << return_code
+						<< "URL-> " << effectiveURL;
+						if (!proxies->isEmpty())
+						{
+							logHarvesterStatus.prepend("Failure receiving network data. URL: " + QString(url.host()) + QString(url.path()) + " Proxy: " + *proxies);
+
+						}
+						else
+						{
+							logHarvesterStatus.prepend("MISC ERROR:: " + QByteArray(errbuf) + " URL: " + QString(url.host()) + QString(url.path()));
+
+						}
+					  }
+					}
 				/**************
 				*checks curl erros codes
 				*
@@ -1182,25 +1316,9 @@ void Worker::curlProcess1(const char *urls[], QString threadName)
 			}
 
 			// Get HTTP status code
-			curl_easy_getinfo(eh, CURLINFO_EFFECTIVE_URL, &effectiveURL);
-			curl_easy_getinfo(eh, CURLINFO_RESPONSE_CODE, &http_status_code);
-			curl_easy_getinfo(eh, CURLINFO_PRIVATE, &szUrl);
 
 
-			if (http_status_code == 200)
-			{
-				//qDebug() << "200 OK";
-				//qDebug() << "RESULT-->" << msg->data.result;
-				//qDebug() << "URL-->" << szUrl;
-				emit senderCurlResponseInfo("Request Succeded");
-				qDebug() << "HTTP  Code--> " << http_status_code << " " << threadName
-					<< " - URL-> " << effectiveURL << "\n";
-			}
-			if (http_status_code == 503) {
-
-				qDebug() << "503 ERROR CODE " << threadName << "URL-> " << effectiveURL;
-				emit senderCurlResponseInfo("503");
-			}
+			
 
 			curl_multi_remove_handle(cm, eh);
 			curl_easy_cleanup(eh);
@@ -1229,6 +1347,15 @@ void Worker::curlProcess1(const char *urls[], QString threadName)
 				curl_easy_setopt(curl, CURLOPT_URL, urls[0]);
 				curl_easy_setopt(curl, CURLOPT_PRIVATE, urls[0]);
 				curl_easy_setopt(curl, CURLOPT_VERBOSE, 0L);
+				if (!proxies->isEmpty())
+				{
+					std::string proxy = proxies->toStdString();
+					curl_easy_setopt(eh, CURLOPT_PROXY, proxy.c_str());
+				}
+				else
+				{
+					curl_easy_setopt(eh, CURLOPT_PROXY, NULL);
+				}
 				curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_write1);
 				curl_easy_setopt(curl, CURLOPT_WRITEDATA, this);
 				curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L); // Tells libcurl to follow HTTP 3xx redirects
@@ -1247,7 +1374,7 @@ void Worker::curlProcess1(const char *urls[], QString threadName)
 
 
 
-
+				QUrl url(effectiveURL);
 				if (result != CURLE_OK) {
 
 					
@@ -1256,13 +1383,32 @@ void Worker::curlProcess1(const char *urls[], QString threadName)
 					{
 					case 5: qDebug() << threadName << " Curl code-> " << result << " Message->" << errbuf
 						<< "URL-> " << effectiveURL;
-						logHarvesterStatus.prepend("Proxy could not be resolved. URL: " + QString(effectiveURL));
+						
+						if (!proxies->isEmpty())
+						{
+							logHarvesterStatus.prepend("Proxy could not be resolved. URL: " + QString(url.host()) + QString(url.path()) + " Proxy: " + *proxies);
+
+						}else
+						{
+							logHarvesterStatus.prepend("Proxy could not be resolved. URL: " + QString(url.host()) + QString(url.path()));
+
+						}
 						emit senderCurlResponseInfo("Proxy Error");
 
 						break;
 					case 7: qDebug() << threadName << " Curl code-> " << result << " Message->" << errbuf
 						<< "URL-> " << effectiveURL;
-						logHarvesterStatus.prepend("Could not connect to proxy or host. URL: " + QString(effectiveURL));
+
+						if (!proxies->isEmpty())
+						{
+							logHarvesterStatus.prepend("Could not connect to proxy or host. URL: " + QString(url.host()) + QString(url.path()) + " Proxy: " + *proxies);
+
+						}else
+						{
+							logHarvesterStatus.prepend("Could not connect to proxy or host. URL: " + QString(url.host()) + QString(url.path()));
+
+						}
+
 						emit senderCurlResponseInfo("Proxy Error");
 
 						break;
@@ -1270,27 +1416,70 @@ void Worker::curlProcess1(const char *urls[], QString threadName)
 
 					case 28: qDebug() << threadName << " Curl code-> " << result << " Message->" << errbuf
 						<< "URL-> " << effectiveURL;
-						logHarvesterStatus.prepend("The server has temporarily blocked your Proxy or IP Address. URL: " + QString(effectiveURL));
+
+						if (!proxies->isEmpty())
+						{
+							logHarvesterStatus.prepend("The server has temporarily blocked your Proxy or IP Address. URL: " + QString(url.host()) + QString(url.path()) + " Proxy: " + *proxies);
+
+						}
+						else
+						{
+							logHarvesterStatus.prepend("The server has temporarily blocked your Proxy or IP Address. URL: " + QString(url.host()) + QString(url.path()));
+
+						}
+
+
 
 						break;
 
 
 					case 35: qDebug() << threadName << " Curl code-> " << result << " Message->" << errbuf
 						<< "URL-> " << effectiveURL;
-						logHarvesterStatus.prepend("The server has temporarily blocked your Proxy or IP Address. URL: " + QString(effectiveURL));
+
+
+						if (!proxies->isEmpty())
+						{
+							logHarvesterStatus.prepend("The server has temporarily blocked your Proxy or IP Address. URL: " + QString(url.host()) + QString(url.path()) + " Proxy: " + *proxies);
+
+						}
+						else
+						{
+							logHarvesterStatus.prepend("The server has temporarily blocked your Proxy or IP Address. URL: " + QString(url.host()) + QString(url.path()));
+
+						}
+						
 						emit senderCurlResponseInfo("Proxy Error");
 
 						break;
 					case 56: qDebug() << threadName << " Curl code-> " << result << " Message->" << errbuf
 						<< "URL-> " << effectiveURL;
-						logHarvesterStatus.prepend("Failure receiving network data. URL: " + QString(effectiveURL));
+
+						if (!proxies->isEmpty())
+						{
+							logHarvesterStatus.prepend("Failure receiving network data. URL: " + QString(url.host()) + QString(url.path()) + " Proxy: " + *proxies);
+
+						}
+						else
+						{
+							logHarvesterStatus.prepend("Failure receiving network data. URL: " + QString(url.host()) + QString(url.path()));
+
+						}
 
 						break;
 
 
 					default: qDebug() << threadName << " Default Switch Statement Curl Code--> " << result
 						<< "URL-> " << effectiveURL;
-						logHarvesterStatus.prepend("DEFAULT:: " +QByteArray(errbuf)+ " URL: " +QString(effectiveURL));
+						if (!proxies->isEmpty())
+						{
+							logHarvesterStatus.prepend("Failure receiving network data. URL: " + QString(url.host()) + QString(url.path()) + " Proxy: " + *proxies);
+
+						}
+						else
+						{
+							logHarvesterStatus.prepend("MISC ERROR:: " + QByteArray(errbuf) + " URL: " + QString(url.host()) + QString(url.path()));
+
+						}
 
 
 					}
@@ -1312,7 +1501,17 @@ void Worker::curlProcess1(const char *urls[], QString threadName)
 					emit senderCurlResponseInfo("Request Succeded");
 					qDebug() << "HTTP  Code--> " << httpResponseCode << " " << threadName
 						<< " - URL-> " << effectiveURL << "\n";
-					logHarvesterStatus.prepend("Successfully Crawling. URL: " + QString(effectiveURL));
+
+					if (!proxies->isEmpty())
+					{
+						logHarvesterStatus.prepend("Successfully Crawling. URL: " +  QString(url.host()) + QString(url.path()) + " Proxy: " + *proxies);
+
+					}
+					else
+					{
+						logHarvesterStatus.prepend("Successfully Crawling. URL: " + QString(url.host()) + QString(url.path()));
+
+					}
 
 
 				}
@@ -1321,8 +1520,19 @@ void Worker::curlProcess1(const char *urls[], QString threadName)
 
 				if (httpResponseCode == 503) {
 
+
+					if (!proxies->isEmpty())
+					{
+						logHarvesterStatus.prepend("Proxy Server or IP Address is temporarily blocked. URL: " + QString(url.host()) + QString(url.path()) + " Proxy: " + *proxies);
+
+					}
+					else
+					{
+						logHarvesterStatus.prepend("Proxy Server or IP Address is temporarily blocked. URL: "  + QString(url.host()) + QString(url.path()));
+
+					}
+
 					qDebug() << "503 ERROR CODE " << threadName << "URL-> " << effectiveURL;
-					logHarvesterStatus.prepend("Proxy Server or IP Address is temporarily blocked. URL: " + QString(effectiveURL));
 
 					emit senderCurlResponseInfo("503");
 				}

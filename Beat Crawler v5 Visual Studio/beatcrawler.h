@@ -20,6 +20,7 @@
 #include "filereader.h"
 #include <QtConcurrent/QtConcurrent>
 #include <QListWidgetItem>
+#include <QItemSelection>
 
 
 namespace Ui {
