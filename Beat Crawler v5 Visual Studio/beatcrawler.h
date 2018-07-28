@@ -19,7 +19,7 @@
 #include <QTableWidgetItem>
 #include "filereader.h"
 #include <QtConcurrent/QtConcurrent>
-
+#include <QListWidgetItem>
 
 
 namespace Ui {
@@ -87,7 +87,7 @@ public:
 	void receiverEnableDeleteEmailCheckBox();
 	void reEnableStartButton();
 	void receiverCurrentKeyword(QString keyword);
-	void receiverLogHarvesterStatus(QStringList logStatus);
+	void receiverLogHarvesterStatus(QString logStatus);
 
 signals:
 	void postParam(QString, QString, QList <QString> *);
@@ -201,7 +201,8 @@ private:
 	int previousPagesNum;
 	QString *currentKeyword_;
 	QString currentKeywordString_;
-	QStringListModel *logHarvesterStatusModel;
+	int *logStatusCounterPtr;
+	int logStatusCounterNum;
 
 };
 

@@ -99,7 +99,6 @@ BeatCrawler::BeatCrawler(QWidget *parent) :
 	}
 	emailTableModel = new QStandardItemModel();
 	fileList = new QStringList();
-	logHarvesterStatusModel = new QStringListModel();
 
 	currentKeywordString_ = "";
 	currentKeyword_ = &currentKeywordString_;
@@ -229,7 +228,8 @@ BeatCrawler::BeatCrawler(QWidget *parent) :
 	previousPagesNum = 0;
 	previousPagesPtr = &previousPagesNum;
 
-
+	logStatusCounterNum = 0;
+	logStatusCounterPtr = &logStatusCounterNum;
 
 
 
@@ -252,7 +252,6 @@ BeatCrawler::~BeatCrawler()
 	delete timer;
 	delete keywordsQueueTableTimer;
 	delete emailTableModel;
-	delete logHarvesterStatusModel;
 	//fileReader->abort();
 	//thread1->wait();
 	//delete thread1;
@@ -612,7 +611,11 @@ void BeatCrawler::on_pushButton_Start_clicked(bool checked)
 			ui->label_Curl_Status->setText("Status: Starting...");
 			clickedStartStopButton = true;
 			//disables options, stops user from altering options while harvesting
-			ui->tabWidget_Harvester_Options->setEnabled(false);
+			ui->tabWidget_Harvester_Options->setTabEnabled(0, false);
+			ui->tabWidget_Harvester_Options->setTabEnabled(1, false);
+			ui->tabWidget_Harvester_Options->setTabEnabled(2, false);
+			ui->tabWidget_Harvester_Options->setTabEnabled(3, false);
+
 			// ui->tabWidget_Global->setTabEnabled(3,false);
 			ui->tableWidget_Proxy->setEnabled(false);
 			ui->lineEdit_Proxy_Host->setEnabled(false);
@@ -663,7 +666,10 @@ void BeatCrawler::on_pushButton_Start_clicked(bool checked)
 		*keywordListSearchEngineCounterPtr = 0;
 		*keywordListNumPtrCounter = 0;
 		*keywordBoxNumPtrCounter = 0;
-		ui->tabWidget_Harvester_Options->setEnabled(true);
+		ui->tabWidget_Harvester_Options->setTabEnabled(0, true);
+		ui->tabWidget_Harvester_Options->setTabEnabled(1, true);
+		ui->tabWidget_Harvester_Options->setTabEnabled(2, true);
+		ui->tabWidget_Harvester_Options->setTabEnabled(3, true);
 		// ui->tabWidget_Global->setTabEnabled(3,true);
 		ui->tableWidget_Proxy->setEnabled(true);
 		ui->lineEdit_Proxy_Host->setEnabled(true);
@@ -2244,12 +2250,29 @@ void BeatCrawler::populateEmailTable() {
 }
 
 
-void BeatCrawler::receiverLogHarvesterStatus(QStringList logStatus)
+void BeatCrawler::receiverLogHarvesterStatus(QString logStatus)
 
 {
+	QList<QString>data;	
+	if (!logStatus.isEmpty())
+	{
+		QListWidgetItem *listItem = new QListWidgetItem(logStatus, ui->listWidget_Log_Harvester_Status);
+		//listItem->setText(logStatus);
+		//ui->listWidget_Log_Harvester_Status->insertItem(*logStatusCounterPtr, listItem);
+		if (*logStatusCounterPtr <= 5)
+		{
+		}
 
-	logHarvesterStatusModel->setStringList(logStatus);
-	ui->listView_Log_Harvester_Status->setModel(logHarvesterStatusModel);
+		if (*logStatusCounterPtr == 16)
+		{
+			*logStatusCounterPtr = 0;
+			//delete listItem;
+			
+			ui->listWidget_Log_Harvester_Status->clear();	
+			
+		}
+		(*logStatusCounterPtr) += 1;
+	}	
 }
 void BeatCrawler::receiverEmailList2(QString list)
 
@@ -2646,7 +2669,7 @@ void BeatCrawler::recieverCurlResponseInfo(QString info)
 	if (info == "Proxy Error" || info == "503")
 	{
 
-		ui->label_Curl_Status->setText("<bold><font color='black'> Status: Proxy failed, or Server is Temporarily Unavailable</font></bold>");
+		ui->label_Curl_Status->setText("<font color='black'> Status: Proxy failed, or Server is Temporarily Unavailable</font>");
 		//QTimer::singleShot(10,this,SLOT(deleteEmailsListTable()));
 		emailList->clear();
 		setEmailList.clear();
@@ -2654,12 +2677,11 @@ void BeatCrawler::recieverCurlResponseInfo(QString info)
 		ui->label_Items_Found->setText("Items Found: ");
 		ui->tableView_Emails->resizeRowsToContents();
 		emit emitRemoveThreadEmailList();
-		//qDebug() << "Proxy or 503 Error";
 
 	}
 	else if (info == "Request Succeded")
 	{
-			ui->label_Curl_Status->setText("<bold> <font color='green'> Status: Successfully Crawling</font></bold>");
+			ui->label_Curl_Status->setText("<b> <font color='green'> Status: Successfully Crawling</font></b>");
 
 	}
 }

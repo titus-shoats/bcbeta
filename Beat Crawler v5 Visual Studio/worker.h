@@ -212,7 +212,7 @@ signals:
 	void emitsenderEnableDeleteKeywordCheckBox();
 	void emitsenderEnableDeleteEmailCheckBox();
 	void emitsendCurrentKeyword(QString keyword);
-	void emitSenderLogHarvesterStatus(QStringList logStatus);
+	void emitSenderLogHarvesterStatus(QString logStatus);
 	public slots:
 	/**
 	* @brief Does something

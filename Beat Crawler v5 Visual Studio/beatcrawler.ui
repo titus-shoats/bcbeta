@@ -747,16 +747,6 @@
        <attribute name="title">
         <string>Log</string>
        </attribute>
-       <widget class="QListView" name="listView_Log_Harvester_Status">
-        <property name="geometry">
-         <rect>
-          <x>10</x>
-          <y>30</y>
-          <width>571</width>
-          <height>161</height>
-         </rect>
-        </property>
-       </widget>
        <widget class="QLabel" name="label_8">
         <property name="geometry">
          <rect>
@@ -768,6 +758,16 @@
         </property>
         <property name="text">
          <string>Harvester Request  Status</string>
+        </property>
+       </widget>
+       <widget class="QListWidget" name="listWidget_Log_Harvester_Status">
+        <property name="geometry">
+         <rect>
+          <x>10</x>
+          <y>30</y>
+          <width>571</width>
+          <height>161</height>
+         </rect>
         </property>
        </widget>
       </widget>

@@ -917,6 +917,7 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 					*fileListPtr = 0;
 					wStop = true;
 					emitFinishSenderHarvestResults("MULTI_SINGLE COMPLETED");
+					logHarvesterStatus.clear();
 				}
 
 			}// end of checking if fileList is empty
@@ -965,6 +966,7 @@ void Worker::curlParams(QList<QVector <QString>>vectorSearchOptions,
 					*fileListPtr = 0;
 					wStop = true;
 					emit emitFinishSenderHarvestResults("MULTI COMPLETED");
+					logHarvesterStatus.clear();
 				}
 
 			}// end of checking if fileList is empty
@@ -1325,7 +1327,9 @@ void Worker::curlProcess1(const char *urls[], QString threadName)
 					emit senderCurlResponseInfo("503");
 				}
 
-				emit emitSenderLogHarvesterStatus(logHarvesterStatus);
+				
+				emit emitSenderLogHarvesterStatus(logHarvesterStatus.value(i));
+
 			}// end of checking is true
 
 			 /* Always cleanup */
