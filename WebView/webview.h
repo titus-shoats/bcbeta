@@ -40,7 +40,7 @@ public:
    void connOpen();
    void connClose();
    void proxyListRotater(QStringList proxyServersList,QWebPage *page);
-   void initProxyListSettings();
+   void initSettings();
    void harvestStatus(QString status);
    QString getRelativePath(QString fileName);
 
@@ -90,6 +90,7 @@ private:
     bool canProxyCounterIncrement;
     bool isMultiURLSelected;
     QString *replyUrl;
+    QString excludeEmailDuplicates;
 
 signals:
     void emitSenderTimer();

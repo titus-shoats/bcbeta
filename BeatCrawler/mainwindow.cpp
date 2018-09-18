@@ -96,6 +96,7 @@ MainWindow::MainWindow(QWidget *parent) :
 
 
 
+
    //ui->pushButton_Next_Email_Pagination->setEnabled(false);
   // ui->pushButton_Previous_Email_Pagination->setEnabled(false);
 
@@ -112,6 +113,8 @@ MainWindow::MainWindow(QWidget *parent) :
 
 
     ui->radioButton_Parse_Multi_URL->hide();
+
+    ui->label_Items_Found->hide();
 
     ui->pushButton_Start->setCheckable(true);
     ui->checkBox_Email_Gmail->setChecked(true);
@@ -173,7 +176,7 @@ MainWindow::~MainWindow()
    delete options;
    delete proxyServers;
    delete fileList;
-   webViewProcess->close();
+   killWebViewProcess();
    delete webViewProcess;
 
    delete worker;
@@ -246,7 +249,7 @@ void MainWindow::completeHarvesterTimer()
         {
             (*emailRowStartPtr) =0;
             (*emailRowEndPtr) =0;
-             webViewProcess->close();
+             killWebViewProcess();
              emailTableTimer->stop();
              completeHarvestTimer->stop();
              emit emitStopQueueKeywords();
@@ -306,7 +309,9 @@ void MainWindow::emailCount()
             emailListCount.prepend(emailTableModel->item(i)->text());
         }
     }
-   ui->label_Items_Found->setText("Items Found: " + QString::number(emailListCount.toSet().toList().size()));
+  // ui->label_Items_Found->setText("Items Found: " + QString::number(emailListCount.toSet().toList().size()));
+  // ui->label_Items_Found->setText("Items Found: " + QString::number(emailListCount.size()));
+
    if(!clickedStartStopButton)
    {
       // emailListCount.clear();
@@ -729,12 +734,16 @@ void MainWindow::on_pushButton_Start_clicked(bool checked)
             //keywordsQueueTable();
 
             //worker->getCurrentKeywords();
-            QFuture<void> multithread1  = QtConcurrent::run(this->worker,
-                                         &Worker::getCurrentKeywords);
-            QFuture<void> multithread2  = QtConcurrent::run(this->queueKeywords,
-                                         &QueueKeywords::getCurrentKeywords);
-//            QFuture<void> multithread2  = QtConcurrent::run(this->worker,
-//                                         &Worker::testTimer);
+            QFuture<void> multithread1  = QtConcurrent::run(this->worker, &Worker::getCurrentKeywords);
+            QFuture<void> multithread2  = QtConcurrent::run(this->queueKeywords,&QueueKeywords::getCurrentKeywords);
+            if(ui->checkBox_Enable_AutoMailer->isChecked())
+            {
+               // QFuture<void> multithread3  = QtConcurrent::run(this,&MainWindow::sendMail);
+                sendMail();
+                ui->label_Email_Sent_SMTP->setText("Emails Sent via SMTP: Enabled");
+            }
+
+
 
 
 
@@ -753,7 +762,7 @@ void MainWindow::on_pushButton_Start_clicked(bool checked)
         ui->listWidget_Log_Harvester_Status->clear();
        (*emailRowStartPtr) =0;
        (*emailRowEndPtr) =0;
-        webViewProcess->close();
+        killWebViewProcess();
         emailTableTimer->stop();
         completeHarvestTimer->stop();
          //create a object of value cancel_harvest when we press stop
@@ -1763,11 +1772,23 @@ void MainWindow::populateEmailTable() {
 
     connOpen();
     QSqlQuery *qry = new QSqlQuery(mydb);
-    if(!qry->exec("select * from crawleremails"))
+    if(ui->checkBox_Exclude_Email_Duplicates->isChecked())
     {
-        qDebug() << "Error selecting rows from crawleremails in mainwindow populatetable " << qry->lastError().text();
-        return;
+        if(!qry->exec("select distinct email from crawleremails"))
+        {
+            qDebug() << "Error selecting rows from crawleremails in mainwindow populatetable " << qry->lastError().text();
+            return;
+        }
     }
+    if(!ui->checkBox_Exclude_Email_Duplicates->isChecked())
+    {
+        if(!qry->exec("select * from crawleremails"))
+        {
+            qDebug() << "Error selecting rows from crawleremails in mainwindow populatetable " << qry->lastError().text();
+            return;
+        }
+    }
+
     int fieldNo = qry->record().indexOf("email");
     int num =0;
     while(qry->next())
@@ -1777,6 +1798,7 @@ void MainWindow::populateEmailTable() {
         QStandardItem *item = new QStandardItem(qry->value(fieldNo).toString());
         emailTableModel->setItem(num, 0, item);
         getEmailList << qry->value(fieldNo).toString();
+        autoMailerEmailList << qry->value(fieldNo).toString();
         QEventLoop loop;
         QTimer::singleShot(1000,&loop,SLOT(quit()));
         loop.exec();
@@ -1838,7 +1860,7 @@ void MainWindow::recieverProxyTableSelection(const QItemSelection &selected, con
 void MainWindow::connOpen()
 {
     mydb = QSqlDatabase::addDatabase("QSQLITE");
-    QString dbPath = getRelativePath("emailtest.db");
+    QString dbPath = getRelativePath("emails.db");
 
     mydb.setDatabaseName(dbPath);
     if(!mydb.open())
@@ -1901,6 +1923,17 @@ void MainWindow::deleteEmailsListTable()
         qDebug() << "Error deleting emails from crawleremails " << qry->lastError().text();
         return;
     }
+    if(!qry->exec("delete from crawlermaileremails"))
+    {
+        qDebug() << "Error deleting emails from crawlermaileremails " << qry->lastError().text();
+        return;
+    }
+
+    if(!qry->exec("UPDATE SQLITE_SEQUENCE SET seq = 0 WHERE name ='crawlermaileremails'"))
+    {
+        qDebug() << "Error sqlite sequence from crawlermaileremails " << qry->lastError().text();
+        return;
+    }
 
     queryModel->setQuery(*qry);
     ui->tableView_Emails->setModel(queryModel);
@@ -1908,6 +1941,7 @@ void MainWindow::deleteEmailsListTable()
     connClose();
     emailTableModel->clear();
     emailListCount.clear();
+    getEmailList.clear();
     delete qry;
     emit emitRemoveEmailList();
 
@@ -2218,7 +2252,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
 
                 (*emailRowStartPtr) =0;
                 (*emailRowEndPtr) =0;
-                webViewProcess->close();
+                killWebViewProcess();
                 emit emitStopQueueKeywords();
                 emit emitStopWorker();
                 clearFiles();
@@ -2230,12 +2264,23 @@ void MainWindow::closeEvent(QCloseEvent *event)
                     qDebug() << "Error deleting emails from crawleremails " << qry->lastError().text();
                     return;
                 }
+                if(!qry->exec("delete from crawlermaileremails"))
+                {
+                    qDebug() << "Error deleting emails from crawlermaileremails " << qry->lastError().text();
+                    return;
+                }
+                if(!qry->exec("UPDATE SQLITE_SEQUENCE SET seq = 0 WHERE name ='crawlermaileremails'"))
+                {
+                    qDebug() << "Error sqlite sequence from crawlermaileremails " << qry->lastError().text();
+                    return;
+                }
+
 
                 queryModel->setQuery(*qry);
                 connClose();
                 delete qry;
-                QProcess::execute("taskkill /im BeatCrawler.exe /f");
-                QProcess::execute("taskkill /im WebView.exe /f");
+                killBeatCrawlerProcess();
+                killWebViewProcess();
 
                 event->accept();
 
@@ -2282,3 +2327,210 @@ QString MainWindow::getRelativePath(QString fileName)
 
 
 }
+
+
+bool MainWindow::findSpintax(char *s, char *&from, char *&to)
+{
+    if(!s) return false;
+    from = s;
+    char *temp = to = NULL;
+    while(!to)
+    {
+        if(!(from = strchr(from,     '{'))) return false; // Find opening bracket
+        if(!(to   = strchr(from,     '}'))) return false; // Find closing bracket
+             temp = strchr(from + 1, '{');                // Check if there's any other opening bracket between the first one and closing bracket
+        if(temp && temp < to)                             // If so start over from that other bracket
+        {
+            from = temp;
+            to = NULL;
+        }
+        else return true;                                 // Otherwise lets say we've got it
+    }
+    return false;
+}
+
+void MainWindow::_textSpin(char *from, char *to)
+{
+    unsigned element = 0;
+    char *pos1 = from, *pos2 = NULL;
+    while((pos1 = strchr(pos1 + 1, '|')) && pos1 < to) ++element;
+    element = rand() % (element + 1);
+    pos1 = from;
+    for(unsigned i = 0; i < element; ++i) pos1 = strchr(pos1 + 1, '|');
+    ++pos1; pos2 = strchr(pos1, '|');
+    if(!pos2 || pos2 >= to) pos2 = to;
+    --pos2;
+    strcpy(from, pos1);
+    strcpy(pos2 + 1 - (pos1 - from), to - (pos1 - from) + 1);
+}
+
+void MainWindow::textSpin(char *s)
+{
+    if(!s) return;
+    char *from, *to;
+    while(findSpintax(s, from, to)) _textSpin(from, to);
+}
+
+void MainWindow::sendTestEmail()
+{
+            QByteArray mailerTextBody = ui->plainTextEdit_Mailer_Body->toPlainText().toLatin1();
+            textSpin( mailerTextBody.data());
+
+            QByteArray mailerTextSubject = ui->lineEdit_Mailer_Subject->text().toLatin1();
+            textSpin( mailerTextSubject.data());
+
+
+            Smtp* smtp = new Smtp(ui->lineEdit_Mailer_Login->text(), ui->lineEdit_Mailer_Password->text(),
+                           ui->lineEdit_Mailer_SMTP_Server->text(), ui->spinBox_Mailer_SMTP_Port->text().toInt());
+            connect(smtp, SIGNAL(status(QString)), this, SLOT(mailSent(QString)));
+            smtp->sendMail(ui->lineEdit_Mailer_Login->text(), ui->lineEdit_Mailer_Email_Provider->text() ,
+                           mailerTextSubject.data(),mailerTextBody.data());
+            mailerEmailSent = ui->lineEdit_Mailer_Email_Provider->text();
+           // qDebug() << ba.data();
+
+            ui->textBrowser_Preview_Mailer_Message->setPlainText
+                    (
+                      // QString("From: ") + ui->lineEdit_Mailer_Login->text() + "\n" +
+                       QString("Subject: ") + mailerTextSubject.data() +"\n\n"+
+                       mailerTextBody.data()
+
+                    );
+
+}
+
+void MainWindow::sendMail()
+{
+
+    QStringList emailsSent;
+    QHash<QString, int> emailListSentHash;
+    int trackSentEmails =1;
+
+
+    for(;;){
+
+
+        connOpen();
+        QSqlQuery *qry = new QSqlQuery(mydb);
+        if(!qry->exec("select * from crawlermaileremails where id= '"+ QString::number(trackSentEmails)+"' "))
+        {
+            qDebug() << "Error selecting rows from crawleremails in mainwindow sendEmail " << qry->lastError().text();
+            return;
+        }
+        QEventLoop loop;
+
+        if(ui->checkBox_Mailer_Timer_Delayed->isChecked())
+        {
+            QTimer::singleShot(ui->checkBox_Mailer_Timer_Delayed->text().toInt()*1000,&loop,SLOT(quit()));
+
+        }
+        if(!ui->checkBox_Mailer_Timer_Delayed->isChecked())
+        {
+            QTimer::singleShot(5000,&loop,SLOT(quit()));
+
+        }
+        loop.exec();
+       // qDebug() << "track emails counter " << trackSentEmails;
+        // If theres more results, send email, and increment counter
+        while(qry->next())
+        {
+
+
+//            for(unsigned i = 0; i < 20; ++i)
+//            {
+//                char foo[] = "This a Spintax {demo|demonstration}. It{{'s| is} showing| shows} how it works";
+//                textSpin(foo);
+
+//                qDebug() <<  "Result " << i << foo;
+//            }
+            QByteArray mailerTextBody = ui->plainTextEdit_Mailer_Body->toPlainText().toLatin1();
+            textSpin( mailerTextBody.data());
+
+            QByteArray mailerTextSubject = ui->lineEdit_Mailer_Subject->text().toLatin1();
+            textSpin( mailerTextSubject.data());
+
+
+            Smtp* smtp = new Smtp(ui->lineEdit_Mailer_Login->text(), ui->lineEdit_Mailer_Password->text(),
+                           ui->lineEdit_Mailer_SMTP_Server->text(), ui->spinBox_Mailer_SMTP_Port->text().toInt());
+            connect(smtp, SIGNAL(status(QString)), this, SLOT(mailSent(QString)));
+            smtp->sendMail(ui->lineEdit_Mailer_Login->text(), qry->value(1).toString() ,
+                           mailerTextSubject.data(),mailerTextBody.data());
+           // qDebug() << ba.data();
+
+            ui->textBrowser_Preview_Mailer_Message->setPlainText
+                    (
+                      // QString("From: ") + ui->lineEdit_Mailer_Login->text() + "\n" +
+                       QString("Subject: ") + mailerTextSubject.data() +"\n\n"+
+                       mailerTextBody.data()
+
+                    );
+           mailerEmailSent = qry->value(1).toString();
+           qDebug() << qry->value(1).toString();
+           trackSentEmails++;
+
+           if(!clickedStartStopButton)
+           {
+               break;
+           }
+
+        }
+
+        if(!clickedStartStopButton)
+        {
+            break;
+        }
+        delete qry;
+        connClose();
+
+}
+
+
+
+
+
+
+
+}
+
+void MainWindow::mailSent(QString status)
+{
+
+    if(status == "Message sent")
+    {
+       // mailerLog.append(status);
+       ui->listWidget_Mailer_Log->addItem(status +" to "+ QString(mailerEmailSent));
+    }
+    else
+    {
+       //ui->listWidget_Mailer_Log->addItem(status);
+    }
+
+}
+
+void MainWindow::on_pushButton_Mailer_Test_clicked()
+{
+   ui->pushButton_Mailer_Test->setDisabled(true);
+   QTimer::singleShot(4000, this, SLOT(reEnableMailerTestButton()));
+
+   sendTestEmail();
+
+}
+
+void MainWindow::reEnableMailerTestButton() {
+    ui->pushButton_Mailer_Test->setDisabled(false);
+}
+
+
+void MainWindow::killWebViewProcess()
+{
+    QProcess::execute("taskkill /im WebView.exe /f");
+    webViewProcess->close();
+
+}
+
+void MainWindow::killBeatCrawlerProcess()
+{
+
+    QProcess::execute("taskkill /im BeatCrawler.exe /f");
+    close();
+}
+

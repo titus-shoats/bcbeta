@@ -25,7 +25,7 @@ WebView::WebView(QWidget *parent)
     httpStatusPtr =&httpStatusNum;
     connect(this,&WebView::emitWebViewLog,&this->worker,&Worker::receiverWebViewLog);
 
-    initProxyListSettings();
+    initSettings();
     replyUrl = new QString();
 }
 
@@ -98,7 +98,7 @@ void WebView::newPageLoading()
     inLoading = true;
     loadingTime.start();
 }
-void WebView::initProxyListSettings()
+void WebView::initSettings()
 {
     QList <QString> *proxyServersJson;
     proxyServersJson = new QList<QString>();
@@ -361,15 +361,25 @@ void WebView::view1Page(QWebPage *page)
                     if (!words.value(num).isEmpty())
 
                     {
-                        if(!qry.exec("insert or replace into crawleremails values('"+words.value(num)+"')"))
+                        if(!qry.exec("insert into crawleremails(email) values('"+words.value(num)+"')"))
                         {
-                            qDebug() << "Error inserting emails into database:: " <<
+                            qDebug() << "Error inserting crawleremails into database:: " <<
                                         qry.lastError().text();
 
                             return;
                         }else
                         {
-                            qDebug() <<  "Successfully inserted emails-->" << words.value(num);
+                           // qDebug() <<  "Successfully inserted crawler emails-->" << words.value(num);
+                        }
+                        if(!qry.exec("insert into crawlermaileremails(maileremails) values('"+words.value(num)+"')"))
+                        {
+                            qDebug() << "Error inserting crawlermaileremails into database:: " <<
+                                        qry.lastError().text();
+
+                            return;
+                        }else
+                        {
+                           // qDebug() <<  "Successfully inserted crawlermaileremails-->" << words.value(num);
                         }
 
 
@@ -1113,7 +1123,7 @@ void WebView::insertEmailsJson()
 void WebView::connOpen()
 {
     mydb = QSqlDatabase::addDatabase("QSQLITE");
-    QString dbFileName = getRelativePath("emailtest.db");
+    QString dbFileName = getRelativePath("emails.db");
 
     mydb.setDatabaseName(dbFileName);
     if(!mydb.open())

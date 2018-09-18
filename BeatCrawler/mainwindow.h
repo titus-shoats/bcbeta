@@ -6,6 +6,7 @@
 #include <QStandardItemModel>
 #include <QEvent>
 #include <cstdio>
+#include <stdlib.h>
 #include <string>
 #include <QTimer>
 #include <QVector>
@@ -31,6 +32,8 @@
 #include <QCloseEvent>
 #include "config.h"
 #include <QStandardPaths>
+#include "smtp.h"
+#include <QHash>
 
 
 namespace Ui {
@@ -55,6 +58,14 @@ public:
     void clearFiles();
     void closeEvent(QCloseEvent *event);
     QString getRelativePath(QString fileName);
+    void sendTestEmail();
+    void sendMail();
+    void killBeatCrawlerProcess();
+    void killWebViewProcess();
+    bool findSpintax(char *s, char *&from, char *&to);
+    void _textSpin(char *from, char *to);
+    void textSpin(char *s);
+
 
 private slots:
 
@@ -69,6 +80,10 @@ private slots:
     void on_checkBox_Delete_Keywords_clicked();
     void on_pushButton_Queue_Keywords_Table_clicked();
     void on_pushButton_Save_Emails_clicked();
+    void on_pushButton_Mailer_Test_clicked();
+    void mailSent(QString);
+
+
 
 public slots:
     void reEnableStartButton();
@@ -86,7 +101,7 @@ public slots:
     void emailCount();
     void receiverEmailTableModel(QSqlQueryModel *queryModel);
     void receiverLogHarvesterStatus(QString logStatus);
-
+    void reEnableMailerTestButton();
 signals:
 
     void emitStopQueueKeywords();
@@ -222,6 +237,10 @@ private:
     int emailCountNum;
     QStringList emailListCount;
     QStringList getEmailList;
+    QStringList autoMailerEmailList;
+    QStringList mailerLog;
+    QString mailerEmailSent;
+
 
 
 };

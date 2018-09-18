@@ -136,16 +136,16 @@ void Worker::receiverStopWorker(){
 
 void Worker::connOpen()
 {
-    mydb = QSqlDatabase::addDatabase("QSQLITE");
-    mydb.setDatabaseName("C:/Users/ace/Documents/QT_Projects/WebView/WebView/emailtest.db");
-    if(!mydb.open())
-    {
-        qDebug() << "Error connecting to database";
-        return;
-    }else
-    {
-      qDebug() << "Successfully connected to database";
-    }
+//    mydb = QSqlDatabase::addDatabase("QSQLITE");
+//    mydb.setDatabaseName("C:/Users/ace/Documents/QT_Projects/WebView/WebView/emails.db");
+//    if(!mydb.open())
+//    {
+//        qDebug() << "Error connecting to database";
+//        return;
+//    }else
+//    {
+//      qDebug() << "Successfully connected to database";
+//    }
 }
 
 void Worker::connClose()

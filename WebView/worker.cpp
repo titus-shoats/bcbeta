@@ -286,10 +286,10 @@ void Worker::startHarvest(QVector<QString>vectorSearchEngineOptions,
     in our case. So to create a instance of seconds class, we need to create a object, that takes a long. In our case s(harvesterTimer)
     The s object of type seconds, also has members as well
     *******/
-    std::chrono::seconds s(harvesterTimer);
-    std::chrono::milliseconds ms = std::chrono::duration_cast<std::chrono::milliseconds>(s);
+  //  std::chrono::seconds s(harvesterTimer);
+  //  std::chrono::milliseconds ms = std::chrono::duration_cast<std::chrono::milliseconds>(s);
     // cast long long to int
-    appTimer = static_cast<int>(ms.count());
+  //  appTimer = static_cast<int>(ms.count());
      stopHarvestLoop = false;
    // qDebug() << "app timer " << appTimer;
 
@@ -503,7 +503,7 @@ void Worker::startHarvest(QVector<QString>vectorSearchEngineOptions,
    // start harvest
    if( stopHarvestLoop == false)
    {
-       for (int i = 0; i < 999999; i++)
+       for (;;)
           {
 
            harvestStatus("HARVEST_BUSY");
@@ -1604,7 +1604,8 @@ void Worker::startHarvest(QVector<QString>vectorSearchEngineOptions,
 
 
               QEventLoop loop;
-              QTimer::singleShot(9000, &loop, SLOT(quit()));
+
+              QTimer::singleShot(harvesterTimer*1000, &loop, SLOT(quit()));
               loop.exec();
 
 
